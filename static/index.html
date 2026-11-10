@@ -63,7 +63,6 @@
       <a class="nav" href="#bags" data-page="bags"><span class="nav-icon">▤</span>Registro de bolsas</a>
       <a class="nav" href="#alerts" data-page="alerts"><span class="nav-icon">⚠</span>Quadro de atenção</a>
       <a class="nav" href="#reports" data-page="reports"><span class="nav-icon">▤</span>Relatórios</a>
-      <a class="nav" href="#communication" data-page="communication"><span class="nav-icon">▱</span>Comunicação</a>
       <a class="nav hidden" id="admin-accounts-nav" href="#accessAccounts" data-page="accessAccounts"><span class="nav-icon">♙</span>Contas de acesso</a>
     </nav>
     <div class="sidebar-bottom">
@@ -79,7 +78,7 @@
       <div class="topbar-title"><strong id="top-title">Cadastros</strong><small id="top-subtitle">Profissionais licenciados e doadores</small></div>
       <div class="topbar-actions">
         <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="Buscar..."></label>
-        <button class="icon-button" id="notifications-button" aria-label="Notificações">♧<i></i></button>
+        <div class="notif-wrap"><button class="icon-button" id="notifications-button" aria-label="Notificações" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><i id="notif-count" class="hidden">0</i></button><div id="notif-panel" class="notif-panel hidden" role="dialog" aria-label="Notificações"></div></div>
         <button class="btn btn-primary" id="new-movement"><span>＋</span> Nova movimentação</button>
         <div class="user-chip"><span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span><button id="logout-button" class="logout-button" type="button">Sair</button></div>
       </div>

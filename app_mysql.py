@@ -271,6 +271,16 @@ class ApiError(Exception):
 
 
 EMAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
+# Notificações: limites de estoque disponível por tipo sanguíneo e prazo de revisão de cadastro.
+STOCK_CRITICAL = 5
+STOCK_LOW = 10
+DONOR_REVIEW_MONTHS = 12
+
+
+def notification_pref_key(user_id) -> str:
+    return f"notificacoes.usuario.{int(user_id)}"
+
+
 DUPLICATE_KEY = 1062  # código MySQL ER_DUP_ENTRY
 ROW_IS_REFERENCED = 1451  # código MySQL ER_ROW_IS_REFERENCED_2 (chave estrangeira)
 
@@ -463,6 +473,8 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path == "/api/donors":
                     self.require_permission(actor_id, "doadores.consultar")
                     return self.list_donors(parse_qs(parsed.query))
+                if parsed.path == "/api/notifications":
+                    return self.list_notifications(actor_id)
                 raise ApiError("Endpoint não encontrado.", 404)
             return self.static_file(parsed.path)
         except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
@@ -528,6 +540,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/donors":
                 self.require_permission(actor_id, "doadores.criar")
                 return self.create_donor(self.read_json(), actor_id)
+            if path == "/api/notifications/preferences":
+                # Cada usuário liga/desliga as próprias notificações.
+                return self.save_notification_preference(self.read_json(), actor_id)
+            review = re.fullmatch(r"/api/donors/(\d+)/review", path)
+            if review:
+                self.require_permission(actor_id, "doadores.editar")
+                return self.review_donor(int(review.group(1)), actor_id)
             if path == "/api/professionals":
                 # Restrição explícita: só ADMINISTRADOR pode cadastrar profissionais,
                 # mesmo que outro perfil tenha profissionais.gerenciar no banco.
@@ -778,8 +797,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def require_permission(self, actor_id, permission_code):
         """Administrador é superusuário; os demais seguem a matriz de permissões."""
+        if not self.has_permission(actor_id, permission_code):
+            raise ApiError("Você não tem permissão para realizar esta operação.", 403)
+
+    def has_permission(self, actor_id, permission_code):
         if self.is_admin_profile(actor_id):
-            return
+            return True
         with connect_db() as db:
             cur = db.cursor()
             cur.execute("""
@@ -792,8 +815,7 @@ class Handler(BaseHTTPRequestHandler):
             """, (actor_id, permission_code))
             allowed = cur.fetchone() is not None
             cur.close()
-        if not allowed:
-            raise ApiError("Você não tem permissão para realizar esta operação.", 403)
+        return allowed
 
     def summary(self):
         today = hoje()
@@ -1032,10 +1054,11 @@ class Handler(BaseHTTPRequestHandler):
         search = query.get("q", [""])[0].strip()[:100]
         sql = """
             SELECT id, nome, data_nascimento, email, telefone, codigo_ficticio,
-                   status, observacoes, tipo_sanguineo, peso_kg, criado_em
+                   status, observacoes, tipo_sanguineo, peso_kg, criado_em, atualizado_em,
+                   (status = 'ATIVO' AND atualizado_em < DATE_SUB(NOW(), INTERVAL %s MONTH)) AS revisao_pendente
             FROM doadores
         """
-        params = []
+        params = [DONOR_REVIEW_MONTHS]
         if search:
             sql += " WHERE nome LIKE %s OR codigo_ficticio LIKE %s OR email LIKE %s"
             params.extend([f"%{search}%"] * 3)
@@ -1048,7 +1071,141 @@ class Handler(BaseHTTPRequestHandler):
         for row in rows:
             row["data_nascimento"] = serialize_date(row.get("data_nascimento"))
             row["criado_em"] = serialize_date(row.get("criado_em"))
+            row["atualizado_em"] = serialize_date(row.get("atualizado_em"))
+            row["revisao_pendente"] = bool(row.get("revisao_pendente"))
         self.send_json(rows)
+
+    def review_donor(self, donor_id, actor_id):
+        """Registra que os dados do doador foram conferidos/atualizados hoje."""
+        conn = connect_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("UPDATE doadores SET atualizado_em=NOW() WHERE id=%s", (donor_id,))
+            if cur.rowcount != 1:
+                raise ApiError("Doador não encontrado.", 404)
+            cur.execute("""
+                INSERT INTO historico_auditoria
+                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
+                VALUES (%s,'REVISAR','doadores','doadores',%s,%s)
+            """, (actor_id, str(donor_id), json.dumps({"cadastro_revisado": True})))
+            conn.commit()
+            cur.close()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        self.send_json({"ok": True, "mensagem": "Cadastro marcado como revisado."})
+
+    # ---------------- Notificações do sistema ----------------
+    def notifications_enabled(self, actor_id) -> bool:
+        with connect_db() as db:
+            cur = db.cursor()
+            cur.execute("SELECT valor_json FROM configuracoes WHERE chave=%s LIMIT 1",
+                        (notification_pref_key(actor_id),))
+            row = cur.fetchone()
+            cur.close()
+        if not row:
+            return True  # padrão: ativadas
+        value = row[0]
+        if isinstance(value, (bytes, bytearray)):
+            value = value.decode("utf-8")
+        try:
+            return bool(json.loads(value)) if isinstance(value, str) else bool(value)
+        except ValueError:
+            return True
+
+    def save_notification_preference(self, data, actor_id):
+        enabled = data.get("ativas")
+        if not isinstance(enabled, bool):
+            raise ApiError("Informe se as notificações devem ficar ativas (true ou false).")
+        with connect_db() as db:
+            cur = db.cursor()
+            cur.execute("""
+                INSERT INTO configuracoes (chave, valor_json, descricao, atualizado_por)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE valor_json=VALUES(valor_json), atualizado_por=VALUES(atualizado_por)
+            """, (notification_pref_key(actor_id), json.dumps(enabled),
+                  "Notificações do sistema ativas para o usuário", actor_id))
+            db.commit()
+            cur.close()
+        self.send_json({"ok": True, "ativas": enabled,
+                        "mensagem": "Notificações ativadas." if enabled else "Notificações desativadas."})
+
+    def list_notifications(self, actor_id):
+        """Alertas calculados na hora a partir do banco (sempre atualizados):
+        estoque baixo/crítico por tipo, bolsas perto do vencimento ou vencidas
+        e cadastros de doadores sem atualização há mais de 1 ano."""
+        if not self.notifications_enabled(actor_id):
+            return self.send_json({"ativas": False, "total": 0, "itens": []})
+        items = []
+        today = hoje()
+        if self.has_permission(actor_id, "estoque.consultar"):
+            with connect_db() as db:
+                cur = db.cursor(dictionary=True)
+                cur.execute("""
+                    SELECT ts.codigo AS tipo, COUNT(b.id) AS n
+                    FROM tipos_sanguineos ts
+                    LEFT JOIN bolsas b ON b.tipo_sanguineo_id = ts.id
+                         AND b.status = 'DISPONIVEL' AND b.data_validade >= %s
+                    WHERE ts.ativo = TRUE
+                    GROUP BY ts.codigo
+                """, (today,))
+                stock = cur.fetchall()
+                cur.execute("""
+                    SELECT
+                      SUM(data_validade BETWEEN %s AND DATE_ADD(%s, INTERVAL 7 DAY)) AS vencendo,
+                      SUM(data_validade < %s) AS vencidas
+                    FROM bolsas
+                    WHERE status IN ('DISPONIVEL','RESERVADA','QUARENTENA')
+                """, (today, today, today))
+                expiry = cur.fetchone() or {}
+                cur.close()
+            for row in sorted(stock, key=lambda r: (int(r["n"]), r["tipo"])):
+                n = int(row["n"])
+                if n <= STOCK_LOW:
+                    critical = n <= STOCK_CRITICAL
+                    items.append({
+                        "tipo": "estoque", "nivel": "critico" if critical else "atencao",
+                        "titulo": f"Estoque {'crítico' if critical else 'baixo'} de {row['tipo']}",
+                        "mensagem": f"{n} {'bolsa disponível' if n == 1 else 'bolsas disponíveis'}.",
+                        "pagina": "stock",
+                    })
+            expired = int(expiry.get("vencidas") or 0)
+            expiring = int(expiry.get("vencendo") or 0)
+            if expired:
+                items.append({
+                    "tipo": "validade", "nivel": "critico",
+                    "titulo": f"{expired} {'bolsa vencida' if expired == 1 else 'bolsas vencidas'}",
+                    "mensagem": "Registre o descarte das bolsas fora da validade.", "pagina": "bags",
+                })
+            if expiring:
+                items.append({
+                    "tipo": "validade", "nivel": "atencao",
+                    "titulo": f"{expiring} {'bolsa vence' if expiring == 1 else 'bolsas vencem'} em até 7 dias",
+                    "mensagem": "Priorize o uso dessas bolsas.", "pagina": "bags",
+                })
+        if self.has_permission(actor_id, "doadores.consultar"):
+            with connect_db() as db:
+                cur = db.cursor(dictionary=True)
+                cur.execute("""
+                    SELECT nome FROM doadores
+                    WHERE status = 'ATIVO' AND atualizado_em < DATE_SUB(NOW(), INTERVAL %s MONTH)
+                    ORDER BY atualizado_em ASC LIMIT 100
+                """, (DONOR_REVIEW_MONTHS,))
+                pending = [r["nome"] for r in cur.fetchall()]
+                cur.close()
+            if pending:
+                names = ", ".join(pending[:3]) + ("…" if len(pending) > 3 else "")
+                one = len(pending) == 1
+                items.append({
+                    "tipo": "cadastro", "nivel": "atencao",
+                    "titulo": f"{len(pending)} {'cadastro de doador precisa' if one else 'cadastros de doadores precisam'} de atualização",
+                    "mensagem": f"Sem atualização há mais de 1 ano: {names}", "pagina": "donors",
+                })
+        order = {"critico": 0, "atencao": 1}
+        items.sort(key=lambda item: order.get(item["nivel"], 2))
+        self.send_json({"ativas": True, "total": len(items), "itens": items})
 
     def create_donor(self, data, actor_id):
         name = str(data.get("nome", "")).strip()
