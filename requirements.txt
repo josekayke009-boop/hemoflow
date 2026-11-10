@@ -1,0 +1,4 @@
+# HemoFlow — dependências Python (o restante usa só a biblioteca padrão)
+mysql-connector-python>=9.1,<27
+# Base de fusos horários (necessária no Windows e em imagens Linux mínimas)
+tzdata>=2024.1

@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Cria o primeiro usuário administrador do HemoFlow no MySQL.
+
+Execute com: python setup_admin.py
+Não grava senhas no arquivo. O hash usa PBKDF2-HMAC-SHA256.
+"""
+import base64
+import getpass
+import hashlib
+import os
+import secrets
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import mysql.connector
+
+
+def password_hash(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    iterations = 600_000
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return "pbkdf2_sha256${}${}${}".format(
+        iterations,
+        base64.urlsafe_b64encode(salt).decode("ascii").rstrip("="),
+        base64.urlsafe_b64encode(digest).decode("ascii").rstrip("="),
+    )
+
+
+def main():
+    print("Configuração inicial do administrador HemoFlow")
+    print("As senhas serão solicitadas sem aparecer na tela.\n")
+
+    db_user = os.environ.get("HEMOFLOW_DB_USER", "hemoflow_app")
+    db_host = os.environ.get("HEMOFLOW_DB_HOST", "127.0.0.1")
+    print(f"Banco: {db_host} (usuário {db_user})")
+    db_password = getpass.getpass(f"Senha do MySQL para {db_user}: ")
+    if not db_password:
+        print("A senha do MySQL não pode ficar vazia.")
+        sys.exit(1)
+
+    nome = input("Nome do administrador: ").strip()
+    email = input("E-mail do administrador: ").strip().lower()
+    if not nome or not email or "@" not in email:
+        print("Informe um nome e um e-mail válido.")
+        sys.exit(1)
+
+    admin_password = getpass.getpass("Crie uma senha para o administrador (mínimo 12 caracteres): ")
+    if len(admin_password) < 12:
+        print("Use uma senha com pelo menos 12 caracteres.")
+        sys.exit(1)
+    confirmation = getpass.getpass("Repita a senha do administrador: ")
+    if admin_password != confirmation:
+        print("As senhas não conferem.")
+        sys.exit(1)
+
+    try:
+        # Mesmas configurações do app (HEMOFLOW_DB_HOST, _PORT, _USER, _NAME, _SSL...),
+        # então funciona tanto no MySQL local quanto no MySQL da nuvem com TLS.
+        import app_mysql
+        app_mysql.DB_PASSWORD = db_password
+        conn = mysql.connector.connect(**app_mysql.db_config())
+        conn.start_transaction()
+        cur = conn.cursor(dictionary=True)
+
+        cur.execute("SELECT id FROM usuarios WHERE email=%s", (email,))
+        existing = cur.fetchone()
+        if existing:
+            conn.rollback()
+            print("Já existe um usuário com esse e-mail. Nenhuma alteração foi feita.")
+            sys.exit(1)
+
+        cur.execute(
+            "INSERT INTO usuarios (nome,email,senha_hash,status) VALUES (%s,%s,%s,'ATIVO')",
+            (nome, email, password_hash(admin_password)),
+        )
+        user_id = cur.lastrowid
+
+        cur.execute("SELECT id FROM perfis WHERE nome='ADMINISTRADOR' LIMIT 1")
+        profile = cur.fetchone()
+        if not profile:
+            conn.rollback()
+            print("Perfil ADMINISTRADOR não encontrado. Nenhuma alteração foi confirmada.")
+            sys.exit(1)
+
+        cur.execute(
+            "INSERT INTO usuario_perfis (usuario_id,perfil_id,atribuido_por) VALUES (%s,%s,%s)",
+            (user_id, profile["id"], user_id),
+        )
+        conn.commit()
+        print("\nAdministrador criado com sucesso.")
+        print(f"ID do usuário: {user_id}")
+        print("Guarde esse ID; ele será usado para configurar HEMOFLOW_OPERATOR_ID.")
+        print("A senha do administrador não foi exibida nem salva em arquivo.")
+        cur.close()
+        conn.close()
+    except mysql.connector.Error as exc:
+        print(f"Erro MySQL: {exc}")
+        print("Confira a senha do usuário MySQL e se o banco hemoflow está disponível.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

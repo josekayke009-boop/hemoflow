@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f00012">
+  <title>HemoFlow — Gestão de hemocomponentes</title>
+  <link rel="icon" type="image/png" href="/hemoflow-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="auth-required">
+  <section id="login-screen" class="login-screen">
+    <form id="login-form" class="login-card">
+      <div class="login-brand"><img class="brand-logo" src="/hemoflow-icon.png" alt="Logo HemoFlow"><div><strong>HemoFlow</strong><small>Gestão de hemocentro</small></div></div>
+      <p class="eyebrow">ACESSO AO SISTEMA</p>
+      <h1>Bem-vindo de volta</h1>
+      <p class="muted">Entre com sua conta para acessar o painel.</p>
+      <label>E-mail
+        <input id="login-email" name="email" type="email" autocomplete="username" placeholder="nome@exemplo.com" required>
+      </label>
+      <label>Senha
+        <input id="login-password" name="senha" type="password" autocomplete="current-password" placeholder="Digite sua senha" required>
+      </label>
+      <div id="login-error" class="form-error hidden" role="alert"></div>
+      <button id="login-submit" class="btn btn-primary full" type="submit">Entrar no sistema</button>
+     <div class="login-footer">
+  <a href="#" id="forgot-password">Esqueceu sua senha?</a>
+  <p>HemoFlow · Gestão segura de hemocentro</p>
+</div>
+    </form>
+  </section>
+  <section id="recovery-screen" class="login-screen" style="display:none">
+    <form id="recovery-form" class="login-card">
+      <div class="login-brand"><img class="brand-logo" src="/hemoflow-icon.png" alt="Logo HemoFlow"><div><strong>HemoFlow</strong><small>Recuperação de senha</small></div></div>
+      <p class="eyebrow">RECUPERAR ACESSO</p>
+      <h1 id="recovery-title">Esqueceu sua senha?</h1>
+      <p id="recovery-description" class="muted">Informe seu e-mail cadastrado para receber um link de recuperação.</p>
+      <label id="recovery-email-label">E-mail
+        <input id="recovery-email" type="email" autocomplete="email" placeholder="nome@exemplo.com" required>
+      </label>
+      <label id="recovery-password-label" class="hidden">Nova senha
+        <input id="recovery-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Mínimo de 10 caracteres">
+      </label>
+      <div id="recovery-error" class="form-error hidden" role="alert"></div>
+      <div id="recovery-success" class="form-error hidden" role="status"></div>
+      <button id="recovery-submit" class="btn btn-primary full" type="submit">Enviar link de recuperação</button>
+      <div class="login-footer"><a href="#" id="back-to-login">Voltar para o login</a><p>HemoFlow · Gestão segura de hemocentro</p></div>
+    </form>
+  </section>
+
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="HemoFlow início">
+      <span class="brand-mark brand-mark-logo"><img src="/hemoflow-icon.png" alt=""></span>
+      <span><b>HemoFlow</b><small>Gestão de hemocentro</small></span>
+    </a>
+    <div class="side-label">MENU PRINCIPAL</div>
+    <nav id="main-nav">
+      <a class="nav active" href="#registrations" data-page="registrations"><span class="nav-icon">♙</span>Cadastros</a>
+      <a class="nav" href="#overview" data-page="overview"><span class="nav-icon">▦</span>Visão geral</a>
+      <a class="nav" href="#stock" data-page="stock"><span class="nav-icon">♢</span>Estoque de sangue</a>
+      <a class="nav" href="#donors" data-page="donors"><span class="nav-icon">♧</span>Doadores</a>
+      <a class="nav" href="#movements" data-page="movements"><span class="nav-icon">⌁</span>Movimentações</a>
+      <a class="nav" href="#bags" data-page="bags"><span class="nav-icon">▤</span>Registro de bolsas</a>
+      <a class="nav" href="#alerts" data-page="alerts"><span class="nav-icon">⚠</span>Quadro de atenção</a>
+      <a class="nav" href="#reports" data-page="reports"><span class="nav-icon">▤</span>Relatórios</a>
+      <a class="nav" href="#communication" data-page="communication"><span class="nav-icon">▱</span>Comunicação</a>
+      <a class="nav hidden" id="admin-accounts-nav" href="#accessAccounts" data-page="accessAccounts"><span class="nav-icon">♙</span>Contas de acesso</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a class="nav" href="#settings" data-page="settings"><span class="nav-icon">⚙</span>Configurações</a>
+      <div class="sidebar-note"><span class="pulse"></span><div><b>Sistema operacional</b><small>Banco de dados local ativo</small></div></div>
+      <div class="side-footer">HEMOFLOW <span>•</span> PROJETO ACADÊMICO</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="mobile-brand"><span class="brand-mark brand-mark-logo"><img src="/hemoflow-icon.png" alt=""></span> HemoFlow</div>
+      <div class="topbar-title"><strong id="top-title">Cadastros</strong><small id="top-subtitle">Profissionais licenciados e doadores</small></div>
+      <div class="topbar-actions">
+        <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="Buscar..."></label>
+        <button class="icon-button" id="notifications-button" aria-label="Notificações">♧<i></i></button>
+        <button class="btn btn-primary" id="new-movement"><span>＋</span> Nova movimentação</button>
+        <div class="user-chip"><span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span><button id="logout-button" class="logout-button" type="button">Sair</button></div>
+      </div>
+    </header>
+    <div id="toast" class="toast hidden" role="status"></div>
+    <section id="page-content" class="page-content"></section>
+  </main>
+
+  <dialog id="bag-dialog" class="modal">
+    <form id="bag-form" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow">ESTOQUE DE SANGUE</p><h2>Registrar bolsa</h2><p class="muted">Preencha os dados da nova bolsa.</p></div><button type="button" class="close-button" id="close-modal" aria-label="Fechar">×</button></div>
+      <div class="form-grid">
+        <label>Código da bolsa <small>Gerado automaticamente</small><input value="Gerado ao salvar" disabled></label>
+        <label>Tipo sanguíneo *<select id="bag-blood" required><option value="">Selecione</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select></label>
+        <label>Volume (ml) *<input id="bag-volume" type="number" min="1" max="1000" value="450" required></label>
+        <label>Localização *<input id="bag-location" placeholder="Ex.: Refrigerador A" required></label>
+        <label>Data de coleta *<input id="bag-collected" type="date" required></label>
+        <label>Data de validade *<input id="bag-expiry" type="date" required></label>
+        <label>Status inicial *<select id="bag-status"><option value="DISPONIVEL">Disponível</option><option value="QUARENTENA">Quarentena</option></select></label>
+        <label class="span-2">Observações<textarea id="bag-notes" rows="3" placeholder="Observações opcionais"></textarea></label>
+      </div>
+      <div id="bag-error" class="form-error hidden" role="alert"></div>
+      <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-modal">Cancelar</button><button class="btn btn-primary" id="save-bag" type="submit">Salvar bolsa</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="transition-dialog" class="modal">
+    <form id="transition-form" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow">ATUALIZAÇÃO DE ESTOQUE</p><h2>Nova movimentação</h2><p class="muted" id="transition-bag-label">Altere o status da bolsa selecionada.</p></div><button type="button" class="close-button" id="close-transition" aria-label="Fechar">×</button></div>
+      <input id="transition-id" type="hidden">
+      <div class="form-grid">
+        <label>Novo status *<select id="transition-status" required><option value="RESERVADA">Reservada</option><option value="DISPONIVEL">Disponível</option><option value="TRANSFUNDIDA">Transfundida</option><option value="DESCARTADA">Descartada</option><option value="QUARENTENA">Quarentena</option></select></label>
+        <label class="span-2">Observação<textarea id="transition-note" rows="3" placeholder="Motivo da movimentação"></textarea></label>
+      </div>
+      <div id="transition-error" class="form-error hidden" role="alert"></div>
+      <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-transition">Cancelar</button><button class="btn btn-primary" type="submit">Confirmar movimentação</button></div>
+    </form>
+  </dialog>
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# ---- Segredos: nunca versionar ----
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# ---- Bancos, dumps e backups (podem conter dados pessoais) ----
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sql
+!sql/*.sql
+!sql/migracoes/*.sql
+!sql/instalacao/*.sql
+*.bak
+_backup_auditoria_*/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- Editores, sistema e logs ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

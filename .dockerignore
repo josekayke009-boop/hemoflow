@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+__pycache__
+*.py[cod]
+*.sql
+*.db
+*.log
+_backup_auditoria_*
+docs
+tests
+scripts
+sql
+static/hemoflow-logo.png
