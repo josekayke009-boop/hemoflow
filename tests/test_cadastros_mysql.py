@@ -53,6 +53,8 @@ class FakeDB:
         self.donor_emails = set()
         self.professional_emails = set()
         self.insert_error = None
+        self.donor_ids = {5}
+        self.delete_error = None
 
     # API usada pelo app
     def cursor(self, dictionary=False):
@@ -90,6 +92,12 @@ class FakeDB:
             return [], 42
         if s.startswith("INSERT INTO historico_auditoria"):
             return [], 1
+        if s.startswith("SELECT id, codigo_ficticio FROM doadores WHERE id"):
+            return ([{"id": params[0], "codigo_ficticio": "DOA-TESTE"}] if params[0] in self.donor_ids else []), None
+        if s.startswith("DELETE FROM doadores"):
+            if self.delete_error:
+                raise self.delete_error
+            return [], None
         raise AssertionError(f"SQL inesperado no teste: {s[:80]}")
 
     def inserts(self, table):
@@ -137,6 +145,15 @@ class CadastrosMySQLTests(unittest.TestCase):
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
+
+    def delete(self, path):
+        req = Request(self.base + path, method="DELETE", headers={"Cookie": "hemoflow_session=token-teste"})
+        try:
+            with urlopen(req, timeout=5) as res:
+                return res.status, json.loads(res.read())
+        except HTTPError as err:
+            with err:
+                return err.code, json.loads(err.read())
 
     def post(self, path, body):
         req = Request(self.base + path, data=json.dumps(body).encode("utf-8"), method="POST",
@@ -225,6 +242,40 @@ class CadastrosMySQLTests(unittest.TestCase):
     def test_sem_sessao_retorna_401(self):
         app_mysql.SESSIONS.clear()
         status, _ = self.post("/api/professionals", PROFESSIONAL)
+        self.assertEqual(status, 401)
+
+    # ---------- exclusão de doadores ----------
+    def test_excluir_doador(self):
+        status, data = self.delete("/api/donors/5")
+        self.assertEqual((status, data["mensagem"]), (200, "Doador excluído."))
+        executed = [s for s, _ in self.db.executed]
+        self.assertTrue(any(s.startswith("DELETE FROM doadores") for s in executed))
+        self.assertTrue(any("'EXCLUIR'" in s for s in executed))
+        self.assertEqual(self.db.commits, 1)
+
+    def test_excluir_doador_inexistente(self):
+        status, _ = self.delete("/api/donors/999")
+        self.assertEqual(status, 404)
+
+    def test_excluir_doador_com_doacoes_bloqueado(self):
+        self.db.delete_error = mysql.connector.IntegrityError(
+            msg="Cannot delete or update a parent row: a foreign key constraint fails", errno=1451)
+        status, data = self.delete("/api/donors/5")
+        self.assertEqual(status, 409)
+        self.assertIn("não pode ser excluído", data["erro"])
+        self.assertEqual((self.db.commits, self.db.rollbacks), (0, 1))
+
+    def test_excluir_doador_sem_permissao(self):
+        def deny(_h, _id, _code):
+            raise app_mysql.ApiError("Você não tem permissão para realizar esta operação.", 403)
+        with mock.patch.object(app_mysql.Handler, "require_permission", deny):
+            status, _ = self.delete("/api/donors/5")
+        self.assertEqual(status, 403)
+        self.assertFalse(any(s.startswith("DELETE") for s, _ in self.db.executed))
+
+    def test_excluir_doador_sem_login(self):
+        app_mysql.SESSIONS.clear()
+        status, _ = self.delete("/api/donors/5")
         self.assertEqual(status, 401)
 
     # ---------- verificação de migração ----------

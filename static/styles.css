@@ -69,3 +69,5 @@ body.auth-required>.sidebar,body.auth-required>.main,body.auth-required>#bag-dia
 @media(max-width:950px){.brand>span:last-child{display:none}}
 /* Login: usa o ícone leve (38 KB) em vez do PNG original de 1,9 MB. */
 .login-brand .brand-logo{border-radius:16px}
+/* Botão de excluir nas tabelas */
+.table-action.danger{color:#c90012;border-color:#ffd0d5}.table-action.danger:hover{background:var(--red-pale)}

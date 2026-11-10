@@ -272,6 +272,7 @@ class ApiError(Exception):
 
 EMAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
 DUPLICATE_KEY = 1062  # código MySQL ER_DUP_ENTRY
+ROW_IS_REFERENCED = 1451  # código MySQL ER_ROW_IS_REFERENCED_2 (chave estrangeira)
 
 
 def valid_email(email: str) -> bool:
@@ -547,6 +548,19 @@ class Handler(BaseHTTPRequestHandler):
                     raise ApiError("Status inválido.")
                 self.require_permission(actor_id, required)
                 return self.transition(int(match.group(1)), data, actor_id)
+            raise ApiError("Endpoint não encontrado.", 404)
+        except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
+            self.handle_exception(exc)
+
+    def do_DELETE(self):
+        try:
+            path = urlparse(self.path).path
+            record = self.require_session()
+            match = re.fullmatch(r"/api/donors/(\d+)", path)
+            if match:
+                # "Editar e inativar doadores": ADMINISTRADOR e RESPONSAVEL_TECNICO.
+                self.require_permission(record["id"], "doadores.editar")
+                return self.delete_donor(int(match.group(1)), record["id"])
             raise ApiError("Endpoint não encontrado.", 404)
         except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
             self.handle_exception(exc)
@@ -1099,6 +1113,37 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
         self.send_json({"ok": True, "id": donor_id, "codigo_ficticio": code,
                         "mensagem": "Doador cadastrado com sucesso."}, 201)
+
+    def delete_donor(self, donor_id, actor_id):
+        """Exclui o cadastro do doador. Se ele já tiver doações ou agendamentos
+        registrados, o MySQL bloqueia (chave estrangeira) e nada é apagado."""
+        conn = connect_db()
+        try:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT id, codigo_ficticio FROM doadores WHERE id=%s FOR UPDATE", (donor_id,))
+            donor = cur.fetchone()
+            if not donor:
+                raise ApiError("Doador não encontrado.", 404)
+            cur.execute("DELETE FROM doadores WHERE id=%s", (donor_id,))
+            # A auditoria guarda só o código interno, não nome nem contato.
+            cur.execute("""
+                INSERT INTO historico_auditoria
+                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
+                VALUES (%s,'EXCLUIR','doadores','doadores',%s,%s)
+            """, (actor_id, str(donor_id), json.dumps({"codigo_ficticio": donor["codigo_ficticio"]})))
+            conn.commit()
+            cur.close()
+        except mysql.connector.IntegrityError as exc:
+            conn.rollback()
+            if getattr(exc, "errno", None) == ROW_IS_REFERENCED:
+                raise ApiError("Este doador tem doações ou agendamentos registrados e não pode ser excluído.", 409)
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        self.send_json({"ok": True, "mensagem": "Doador excluído."})
 
     def list_access_accounts(self):
         """Lista contas e perfis disponíveis; o endpoint já exige ADMINISTRADOR."""
