@@ -2,7 +2,7 @@
 
 Sistema web acadêmico de gerenciamento de banco de sangue: doadores, profissionais, contas de acesso com perfis, bolsas, estoque e movimentações. Projeto Inovadores, ADS (4º período), UNINASSAU.
 
-> **Aviso:** protótipo didático. Não é um sistema clínico validado. Use somente dados fictícios.
+
 
 ## Arquitetura
 
