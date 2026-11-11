@@ -14,6 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Só o necessário para rodar: backend + interface.
 COPY app_mysql.py setup_admin.py ./
 COPY static ./static
+# Estrutura do banco para a instalação automática (HEMOFLOW_AUTO_INSTALL=1).
+COPY sql/instalacao ./sql/instalacao
 
 # Não roda como root dentro do contêiner.
 RUN useradd --create-home --uid 10001 hemoflow

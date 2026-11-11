@@ -1698,6 +1698,55 @@ class HemoFlowServer(ThreadingHTTPServer):
     daemon_threads = True
 
 
+INSTALL_DIR = BASE_DIR / "sql" / "instalacao"
+
+
+def sql_statements(sql_text: str):
+    """Divide um arquivo .sql em comandos (terminam com ';' no fim da linha)."""
+    buffer = []
+    for line in sql_text.splitlines():
+        if not buffer and (not line.strip() or line.lstrip().startswith("--")):
+            continue
+        buffer.append(line)
+        if line.rstrip().endswith(";"):
+            command = "\n".join(buffer).strip().rstrip(";").strip()
+            buffer = []
+            if command:
+                yield command
+
+
+def auto_install_schema() -> bool:
+    """HEMOFLOW_AUTO_INSTALL=1: se o banco estiver VAZIO (sem a tabela usuarios), cria a
+    estrutura e os dados de referência (perfis, permissões, tipos sanguíneos) a partir de
+    sql/instalacao/. Nunca roda num banco que já tem o HemoFlow e não copia dados pessoais.
+    Pensado para a nuvem, onde o banco não fica exposto à internet."""
+    if os.environ.get("HEMOFLOW_AUTO_INSTALL", "0") != "1":
+        return False
+    conn = mysql.connector.connect(**{**db_config(), "autocommit": True})
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                       WHERE TABLE_SCHEMA=%s AND TABLE_NAME='usuarios'""", (DB_NAME,))
+        if cur.fetchone()[0]:
+            cur.close()
+            return False
+        files = sorted(INSTALL_DIR.glob("0*.sql"))
+        if not files:
+            raise RuntimeError(f"Arquivos de instalação não encontrados em {INSTALL_DIR}.")
+        print("Banco vazio: instalando a estrutura do HemoFlow...")
+        for path in files:
+            commands = list(sql_statements(path.read_text(encoding="utf-8")))
+            for command in commands:
+                cur.execute(command)
+            print(f"  OK: {path.name} ({len(commands)} comandos)")
+        cur.close()
+        _SCHEMA_OK.clear()
+        print("Estrutura instalada. Crie o primeiro administrador com: python setup_admin.py")
+        return True
+    finally:
+        conn.close()
+
+
 def main():
     print(f"HemoFlow ({'produção' if PRODUCTION else 'desenvolvimento'}) escutando em http://{HOST}:{PORT}")
     print(f"MySQL: {DB_HOST}:{DB_PORT}/{DB_NAME} (usuário {DB_USER}, TLS: {DB_SSL})")
@@ -1711,6 +1760,7 @@ def main():
     try:
         conn = connect_db()
         conn.close()
+        auto_install_schema()
         pending = pending_migration_001()
         if pending:
             print("AVISO: migração 001 (e-mail único) pendente:", ", ".join(pending))

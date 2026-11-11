@@ -35,7 +35,8 @@ def main():
     db_user = os.environ.get("HEMOFLOW_DB_USER", "hemoflow_app")
     db_host = os.environ.get("HEMOFLOW_DB_HOST", "127.0.0.1")
     print(f"Banco: {db_host} (usuário {db_user})")
-    db_password = getpass.getpass(f"Senha do MySQL para {db_user}: ")
+    # Na nuvem (console do Railway) a senha do banco já está em HEMOFLOW_DB_PASSWORD.
+    db_password = os.environ.get("HEMOFLOW_DB_PASSWORD") or getpass.getpass(f"Senha do MySQL para {db_user}: ")
     if not db_password:
         print("A senha do MySQL não pode ficar vazia.")
         sys.exit(1)
