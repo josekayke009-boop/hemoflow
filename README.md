@@ -4,6 +4,9 @@ Sistema web acadêmico de gerenciamento de banco de sangue: doadores, profission
 
 
 
+**Sistema no ar:** https://hemoflow-production.up.railway.app  
+**Código:** https://github.com/josekayke009-boop/hemoflow
+
 ## Arquitetura
 
 - **Backend:** Python (biblioteca padrão `http.server`) em `app_mysql.py`
@@ -43,6 +46,9 @@ python setup_admin.py
 | `sql/criar_recuperacao_senhas.sql` | tabela de recuperação de senha | sim (só cria) |
 | `scripts/instalar_banco_nuvem.py` | cria a estrutura num MySQL novo (nuvem), sem dados pessoais | sim (banco vazio) |
 | `scripts/backup_nuvem.ps1` | backup do banco da nuvem | não |
+| `scripts/migracao_002_endereco_doador.py` | endereço do doador (`--verificar`, `--reverter`) | sim, reversível |
+| `scripts/migracao_003_recuperacao_senha.py` | tabela da recuperação de senha | sim (só cria) |
+| `scripts/redefinir_senha_app.py` | nova senha para o usuário `hemoflow_app` (pede a do root) | só a senha |
 | `migrar_cadastros.py` | colunas de tipo sanguíneo e peso em `doadores` | sim (só adiciona) |
 
 Alterações de estrutura devem ser feitas com um usuário administrativo (ex.: `root`); `hemoflow_app` não tem permissão de `CREATE`. **Faça o backup antes.**
