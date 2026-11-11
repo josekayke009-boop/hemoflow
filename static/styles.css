@@ -101,3 +101,8 @@ body.auth-required>.sidebar,body.auth-required>.main,body.auth-required>#bag-dia
 .switch:focus-visible{outline:3px solid #8bb0ff;outline-offset:2px}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap}
 
+/* Notificações já vistas e "marcar todas" */
+.notif-item.read{opacity:.6}.notif-item.read b{font-weight:500}
+.notif-item.read .notif-dot{background:#cfd8e6!important}
+.notif-item.read em{color:var(--muted)!important;background:#f1f4f9!important}
+.notif-markall{border:0;border-bottom:1px solid #edf1f7;background:#fbfcfe;padding:9px 16px;text-align:right;color:var(--red);font-size:12px;font-weight:600}

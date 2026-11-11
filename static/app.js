@@ -3,7 +3,7 @@
   const $ = (s, root=document) => root.querySelector(s);
   const $$ = (s, root=document) => [...root.querySelectorAll(s)];
   const bloodTypes = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
-  const state = {page:"registrations", bags:[], movements:[], donors:[], summary:null, user:null, donorType:"donor", notifications:{ativas:true,total:0,itens:[]}};
+  const state = {page:"registrations", bags:[], movements:[], donors:[], summary:null, user:null, donorType:"donor", notifications:{ativas:true,total:0,itens:[]}, notifSeq:0};
   const titles = {
     registrations:["Cadastros","Profissionais licenciados e doadores"],
     overview:["Visão geral","Atualizado hoje"],
@@ -28,7 +28,8 @@
   async function api(url, options={}) {
     const res=await fetch(url,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
     let data={};try{data=await res.json();}catch{}
-    if(!res.ok){if(res.status===401){showLogin();}const error=new Error(data.erro||"Não foi possível concluir a operação.");error.status=res.status;throw error;}
+    // Sem mensagem em JSON (ex.: 501 de um servidor antigo/desatualizado): explica em vez de um erro genérico.
+    if(!res.ok){if(res.status===401){showLogin();}const fallback=[404,405,501].includes(res.status)?"Esta função não está disponível no servidor em execução. Reinicie o HemoFlow para carregar a versão atual.":"Não foi possível concluir a operação.";const error=new Error(data.erro||fallback);error.status=res.status;throw error;}
     return data;
   }
   // Permissões vindas do MySQL (perfil_permissoes). Servem só para esconder botões;
@@ -138,7 +139,7 @@
   function openTransition(bag=null){if(!state.bags.length){toast("Cadastre ou carregue uma bolsa antes de movimentar.");navigate("bags");return;}const chosen=bag||state.bags.find(b=>["DISPONIVEL","RESERVADA","QUARENTENA"].includes(b.status))||state.bags[0];$("#transition-id").value=chosen.id;$("#transition-bag-label").textContent=`Bolsa ${chosen.codigo} · status atual: ${statusLabel(chosen.status)}`;const allowed=(({DISPONIVEL:["RESERVADA","TRANSFUNDIDA","DESCARTADA","QUARENTENA"],RESERVADA:["DISPONIVEL","TRANSFUNDIDA","DESCARTADA"],QUARENTENA:["DISPONIVEL","DESCARTADA"]}[chosen.status])||[]).filter(s=>can(transitionPermission[s]));if(!allowed.length){toast(`Seu perfil não pode movimentar bolsas com status ${statusLabel(chosen.status)}.`);return;}$("#transition-status").innerHTML=allowed.map(s=>`<option value="${s}">${statusLabel(s)}</option>`).join("");$("#transition-note").value="";$("#transition-error").classList.add("hidden");$("#transition-dialog").showModal();}
   $("#transition-form").addEventListener("submit",async e=>{e.preventDefault();const error=$("#transition-error");error.classList.add("hidden");try{await api(`/api/bags/${encodeURIComponent($("#transition-id").value)}/transition`,{method:"POST",body:JSON.stringify({status:$("#transition-status").value,observacao:$("#transition-note").value.trim()})});closeTransition();toast("Movimentação registrada.");await refreshData();navigate("movements");}catch(err){error.textContent=err.message;error.classList.remove("hidden");}});
   // allSettled: a falta de permissão em um módulo (403) não impede o carregamento dos demais.
-  async function refreshData(){const results=await Promise.allSettled([api("/api/summary"),api("/api/bags"),api("/api/movements"),api("/api/donors"),api("/api/notifications")]);const [summary,bags,movements,donors,notifications]=results.map(r=>r.status==="fulfilled"?r.value:null);if(notifications&&Array.isArray(notifications.itens)){state.notifications=notifications;renderNotificationBadge();}state.summary=summary&&typeof summary==="object"&&!Array.isArray(summary)?summary:null;state.bags=Array.isArray(bags)?bags:[];state.movements=Array.isArray(movements)?movements:[];state.donors=Array.isArray(donors)?donors:[];if(document.body.classList.contains("auth-required"))return;const failure=results.find(r=>r.status==="rejected"&&r.reason?.status!==403&&r.reason?.status!==401);if(failure)toast(failure.reason.message);if(state.page!=="registrations"&&state.page!=="accessAccounts")renderPage();}
+  async function refreshData(){const notifSeq=++state.notifSeq;const results=await Promise.allSettled([api("/api/summary"),api("/api/bags"),api("/api/movements"),api("/api/donors"),api("/api/notifications")]);const [summary,bags,movements,donors,notifications]=results.map(r=>r.status==="fulfilled"?r.value:null);if(notifications&&Array.isArray(notifications.itens)&&notifSeq===state.notifSeq){state.notifications=notifications;renderNotificationBadge();}state.summary=summary&&typeof summary==="object"&&!Array.isArray(summary)?summary:null;state.bags=Array.isArray(bags)?bags:[];state.movements=Array.isArray(movements)?movements:[];state.donors=Array.isArray(donors)?donors:[];if(document.body.classList.contains("auth-required"))return;const failure=results.find(r=>r.status==="rejected"&&r.reason?.status!==403&&r.reason?.status!==401);if(failure)toast(failure.reason.message);if(state.page!=="registrations"&&state.page!=="accessAccounts")renderPage();}
   function pageHeading(title,subtitle,button=""){return `<div class="page-heading"><div><h1>${title}</h1><p>${subtitle}</p></div>${button}</div>`;}
   function btnNewBag(){if(!can("estoque.bolsa.criar"))return "";return `<button class="btn btn-primary" data-action="new-bag"><span>＋</span> Registrar bolsa</button>`;}
   function stat(label,value,note,icon,cls){return `<article class="stat-card"><div class="stat-top"><span>${label}</span><span class="stat-icon ${cls}">${icon}</span></div><strong>${value??"—"}</strong><small>${note}</small></article>`;}
@@ -185,23 +186,38 @@
   function renderNotificationBadge(){
     const badge=$("#notif-count"),n=state.notifications.ativas?state.notifications.total:0;
     badge.textContent=n>9?"9+":String(n);badge.classList.toggle("hidden",!n);
-    $("#notifications-button").setAttribute("aria-label",n?`Notificações: ${n} alerta(s)`:"Notificações");
+    $("#notifications-button").setAttribute("aria-label",n?`Notificações: ${n} não lida(s)`:"Notificações");
     if(!$("#notif-panel").classList.contains("hidden"))renderNotificationPanel();
   }
   function renderNotificationPanel(){
     const nt=state.notifications;let body;
     if(nt.ativas===false)body=`<div class="notif-empty">As notificações estão desativadas.</div>`;
     else if(!nt.itens.length)body=`<div class="notif-empty">Nenhum alerta no momento.</div>`;
-    else body=nt.itens.map(i=>`<button class="notif-item ${i.nivel==="critico"?"critical":"warning"}" data-notif-page="${esc(i.pagina)}"><span class="notif-dot"></span><span><b>${esc(i.titulo)}</b><small>${esc(i.mensagem)}</small></span><em>${esc(levelLabel[i.nivel]||"")}</em></button>`).join("");
-    $("#notif-panel").innerHTML=`<div class="notif-head"><b>Notificações</b><span>${nt.ativas===false?"Desativadas":nt.total+" alerta(s)"}</span></div><div class="notif-list">${body}</div><button class="notif-foot" data-notif-page="settings">Configurar notificações</button>`;
+    else body=nt.itens.map((i,idx)=>`<button class="notif-item ${i.nivel==="critico"?"critical":"warning"} ${i.lida?"read":""}" data-notif-index="${idx}"><span class="notif-dot"></span><span><b>${esc(i.titulo)}</b><small>${esc(i.mensagem)}</small></span><em>${i.lida?"Vista":esc(levelLabel[i.nivel]||"")}</em></button>`).join("");
+    const status=nt.ativas===false?"Desativadas":(nt.total?`${nt.total} não lida(s)`:"Todas vistas");
+    const markAll=nt.ativas!==false&&nt.total?`<button class="notif-markall" id="notif-markall">Marcar todas como vistas</button>`:"";
+    $("#notif-panel").innerHTML=`<div class="notif-head"><b>Notificações</b><span>${status}</span></div>${markAll}<div class="notif-list">${body}</div><button class="notif-foot" data-notif-page="settings">Configurar notificações</button>`;
+    $$("#notif-panel [data-notif-index]").forEach(b=>b.addEventListener("click",()=>{const item=nt.itens[Number(b.dataset.notifIndex)];closeNotifications();if(item&&!item.lida)markNotificationsRead({chaves:[item.chave]},[item]);navigate(item?item.pagina:"overview");}));
     $$("#notif-panel [data-notif-page]").forEach(b=>b.addEventListener("click",()=>{closeNotifications();navigate(b.dataset.notifPage);}));
+    const all=$("#notif-markall");if(all)all.addEventListener("click",e=>{e.stopPropagation();markNotificationsRead({todas:true},nt.itens);});
+  }
+  // Dá baixa na hora (o número diminui sem esperar o servidor) e confirma no banco.
+  async function markNotificationsRead(body,items){
+    items.forEach(i=>{i.lida=true;});
+    state.notifications.total=state.notifications.itens.filter(i=>!i.lida).length;
+    renderNotificationBadge();
+    // Uma busca que começou antes da baixa traria a lista antiga: ela é ignorada (notifSeq)
+    // e a lista é buscada de novo depois que a baixa foi gravada.
+    const seq=++state.notifSeq;
+    try{await api("/api/notifications/read",{method:"POST",body:JSON.stringify(body)});const fresh=await api("/api/notifications");if(seq===state.notifSeq){state.notifications=fresh;renderNotificationBadge();}}
+    catch(err){toast(err.message);}
   }
   function toggleNotifications(){const panel=$("#notif-panel");if(panel.classList.contains("hidden")){renderNotificationPanel();panel.classList.remove("hidden");$("#notifications-button").setAttribute("aria-expanded","true");}else closeNotifications();}
   function closeNotifications(){const panel=$("#notif-panel");if(panel&&!panel.classList.contains("hidden")){panel.classList.add("hidden");$("#notifications-button").setAttribute("aria-expanded","false");}}
   async function setNotificationPreference(on,input){
     input.disabled=true;
     try{const r=await api("/api/notifications/preferences",{method:"POST",body:JSON.stringify({ativas:on})});toast(r.mensagem);
-      state.notifications=await api("/api/notifications");renderNotificationBadge();
+      const seq=++state.notifSeq;const fresh=await api("/api/notifications");if(seq===state.notifSeq){state.notifications=fresh;renderNotificationBadge();}
       const s=$("#notif-pref-status");if(s)s.textContent=on?"Ativadas: os alertas aparecem no sino do topo.":"Desativadas: nenhum alerta será exibido.";}
     catch(err){input.checked=!on;toast(err.message);}
     finally{input.disabled=false;}

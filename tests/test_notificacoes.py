@@ -35,7 +35,7 @@ class FakeCursor:
 class FakeDB:
     def __init__(self):
         self.executed, self.commits = [], 0
-        self.pref = None            # None = sem preferência gravada
+        self.config = {}            # configuracoes: chave -> valor_json
         self.stock = {"A+": 20, "A-": 0, "O+": 7, "O-": 12}
         self.expiry = {"vencendo": 2, "vencidas": 1}
         self.pending_donors = ["Doador Antigo"]
@@ -61,9 +61,9 @@ class FakeDB:
 
     def respond(self, s, params):
         if s.startswith("SELECT valor_json FROM configuracoes"):
-            return ([(self.pref,)] if self.pref is not None else []), 0
+            return ([(self.config[params[0]],)] if params[0] in self.config else []), 0
         if s.startswith("INSERT INTO configuracoes"):
-            self.pref = params[1]
+            self.config[params[0]] = params[1]
             return [], 1
         if s.startswith("SELECT ts.codigo AS tipo"):
             return [{"tipo": k, "n": v} for k, v in self.stock.items()], 0
@@ -126,7 +126,9 @@ class NotificationTests(unittest.TestCase):
         self.assertIn("1 bolsa vencida", titles)
         self.assertIn("2 bolsas vencem em até 7 dias", titles)
         self.assertIn("1 cadastro de doador precisa de atualização", titles)
-        self.assertEqual(data["total"], len(data["itens"]))
+        self.assertEqual(data["total"], len(data["itens"]))      # nada lido ainda
+        self.assertEqual(data["total_alertas"], len(data["itens"]))
+        self.assertTrue(all(not i["lida"] and i["chave"] for i in data["itens"]))
         # críticos aparecem primeiro
         levels = [i["nivel"] for i in data["itens"]]
         self.assertEqual(levels, sorted(levels, key=lambda lv: 0 if lv == "critico" else 1))
@@ -139,13 +141,48 @@ class NotificationTests(unittest.TestCase):
     def test_desativar_e_reativar(self):
         status, data = self.call("/api/notifications/preferences", {"ativas": False})
         self.assertEqual((status, data["mensagem"]), (200, "Notificações desativadas."))
-        self.assertEqual(self.db.pref, "false")
+        self.assertEqual(self.db.config["notificacoes.usuario.4"], "false")
         _, data = self.call("/api/notifications")
         self.assertEqual((data["ativas"], data["itens"]), (False, []))
         self.call("/api/notifications/preferences", {"ativas": True})
         _, data = self.call("/api/notifications")
         self.assertTrue(data["ativas"])
         self.assertTrue(data["itens"])
+
+    def test_clicar_da_baixa_e_diminui_o_numero(self):
+        _, data = self.call("/api/notifications")
+        total, chave = data["total"], data["itens"][0]["chave"]
+        status, r = self.call("/api/notifications/read", {"chaves": [chave]})
+        self.assertEqual((status, r["total"]), (200, total - 1))
+        _, data = self.call("/api/notifications")
+        self.assertEqual(data["total"], total - 1)
+        self.assertEqual(data["total_alertas"], total)          # o alerta continua na lista, como "vista"
+        self.assertTrue(next(i for i in data["itens"] if i["chave"] == chave)["lida"])
+
+    def test_marcar_todas(self):
+        status, r = self.call("/api/notifications/read", {"todas": True})
+        self.assertEqual((status, r["total"]), (200, 0))
+        _, data = self.call("/api/notifications")
+        self.assertEqual(data["total"], 0)
+
+    def test_situacao_mudou_volta_a_contar(self):
+        self.call("/api/notifications/read", {"todas": True})
+        self.db.stock["A-"] = 3                                  # estoque mudou: 0 -> 3 bolsas
+        _, data = self.call("/api/notifications")
+        self.assertEqual(data["total"], 1)
+        self.assertEqual([i["titulo"] for i in data["itens"] if not i["lida"]], ["Estoque crítico de A-"])
+
+    def test_chave_inexistente_ou_invalida(self):
+        status, r = self.call("/api/notifications/read", {"chaves": ["nao:existe"]})
+        self.assertEqual(status, 200)
+        _, data = self.call("/api/notifications")
+        self.assertEqual(data["total"], data["total_alertas"])  # nada foi marcado
+        status, _ = self.call("/api/notifications/read", {"chaves": "x"})
+        self.assertEqual(status, 400)
+
+    def test_vistas_sao_por_usuario(self):
+        self.call("/api/notifications/read", {"todas": True})
+        self.assertIn("notificacoes.vistas.usuario.4", self.db.config)
 
     def test_preferencia_invalida(self):
         status, _ = self.call("/api/notifications/preferences", {"ativas": "sim"})

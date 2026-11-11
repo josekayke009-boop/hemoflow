@@ -281,6 +281,10 @@ def notification_pref_key(user_id) -> str:
     return f"notificacoes.usuario.{int(user_id)}"
 
 
+def notification_seen_key(user_id) -> str:
+    return f"notificacoes.vistas.usuario.{int(user_id)}"
+
+
 DUPLICATE_KEY = 1062  # código MySQL ER_DUP_ENTRY
 ROW_IS_REFERENCED = 1451  # código MySQL ER_ROW_IS_REFERENCED_2 (chave estrangeira)
 
@@ -363,7 +367,26 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print("[%s] %s" % (self.log_date_time_string(), fmt % args))
 
+    def drain_body(self):
+        """Lê (e descarta) o corpo que ainda não foi lido. Se o servidor responder sem
+        ler o que o navegador enviou (ex.: 403 antes de read_json), o Windows pode
+        cortar a conexão e o navegador recebe erro de rede em vez da mensagem."""
+        if getattr(self, "_body_consumed", False):
+            return
+        self._body_consumed = True
+        try:
+            remaining = int(self.headers.get("Content-Length", "0") or 0)
+        except ValueError:
+            return
+        remaining = min(remaining, 20_000)
+        while remaining > 0:
+            chunk = self.rfile.read(min(remaining, 4096))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+
     def send_json(self, data, status=200, extra_headers=None):
+        self.drain_body()
         raw = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -381,6 +404,7 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             if length < 1 or length > 20_000:
                 raise ApiError("Corpo da requisição ausente ou muito grande.", 413)
+            self._body_consumed = True
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict):
                 raise ApiError("O conteúdo enviado deve ser um objeto JSON.")
@@ -540,6 +564,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/donors":
                 self.require_permission(actor_id, "doadores.criar")
                 return self.create_donor(self.read_json(), actor_id)
+            if path == "/api/notifications/read":
+                return self.mark_notifications_read(self.read_json(), actor_id)
             if path == "/api/notifications/preferences":
                 # Cada usuário liga/desliga as próprias notificações.
                 return self.save_notification_preference(self.read_json(), actor_id)
@@ -1132,12 +1158,67 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"ok": True, "ativas": enabled,
                         "mensagem": "Notificações ativadas." if enabled else "Notificações desativadas."})
 
+    def load_seen_notifications(self, actor_id) -> set:
+        with connect_db() as db:
+            cur = db.cursor()
+            cur.execute("SELECT valor_json FROM configuracoes WHERE chave=%s LIMIT 1",
+                        (notification_seen_key(actor_id),))
+            row = cur.fetchone()
+            cur.close()
+        if not row:
+            return set()
+        value = row[0]
+        if isinstance(value, (bytes, bytearray)):
+            value = value.decode("utf-8")
+        try:
+            data = json.loads(value) if isinstance(value, str) else value
+        except ValueError:
+            return set()
+        return {str(k) for k in data} if isinstance(data, list) else set()
+
+    def save_seen_notifications(self, actor_id, keys):
+        with connect_db() as db:
+            cur = db.cursor()
+            cur.execute("""
+                INSERT INTO configuracoes (chave, valor_json, descricao, atualizado_por)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE valor_json=VALUES(valor_json), atualizado_por=VALUES(atualizado_por)
+            """, (notification_seen_key(actor_id), json.dumps(sorted(keys)),
+                  "Notificações já vistas pelo usuário", actor_id))
+            db.commit()
+            cur.close()
+
     def list_notifications(self, actor_id):
-        """Alertas calculados na hora a partir do banco (sempre atualizados):
-        estoque baixo/crítico por tipo, bolsas perto do vencimento ou vencidas
-        e cadastros de doadores sem atualização há mais de 1 ano."""
+        """Alertas calculados na hora a partir do banco. "total" conta só os não lidos:
+        um alerta visto deixa de contar até a situação mudar (a chave muda)."""
         if not self.notifications_enabled(actor_id):
-            return self.send_json({"ativas": False, "total": 0, "itens": []})
+            return self.send_json({"ativas": False, "total": 0, "total_alertas": 0, "itens": []})
+        items = self.build_notifications(actor_id)
+        seen = self.load_seen_notifications(actor_id)
+        for item in items:
+            item["lida"] = item["chave"] in seen
+        unread = sum(1 for item in items if not item["lida"])
+        self.send_json({"ativas": True, "total": unread, "total_alertas": len(items), "itens": items})
+
+    def mark_notifications_read(self, data, actor_id):
+        """Dá baixa (marca como vista) em uma ou mais notificações, ou em todas."""
+        current = {item["chave"] for item in self.build_notifications(actor_id)}
+        if data.get("todas") is True:
+            chosen = set(current)
+        else:
+            keys = data.get("chaves")
+            if not isinstance(keys, list) or not keys or len(keys) > 200 \
+                    or not all(isinstance(k, str) and len(k) <= 120 for k in keys):
+                raise ApiError("Informe as notificações a marcar como lidas.")
+            chosen = set(keys) & current
+        # Guarda só o que ainda está ativo: a lista não cresce sem limite.
+        seen = (self.load_seen_notifications(actor_id) & current) | chosen
+        self.save_seen_notifications(actor_id, seen)
+        self.send_json({"ok": True, "total": len(current - seen)})
+
+    def build_notifications(self, actor_id):
+        """Estoque baixo/crítico por tipo, bolsas perto do vencimento ou vencidas
+        e cadastros de doadores sem atualização há mais de 1 ano."""
         items = []
         today = hoje()
         if self.has_permission(actor_id, "estoque.consultar"):
@@ -1166,6 +1247,7 @@ class Handler(BaseHTTPRequestHandler):
                 if n <= STOCK_LOW:
                     critical = n <= STOCK_CRITICAL
                     items.append({
+                        "chave": f"estoque:{row['tipo']}:{n}",
                         "tipo": "estoque", "nivel": "critico" if critical else "atencao",
                         "titulo": f"Estoque {'crítico' if critical else 'baixo'} de {row['tipo']}",
                         "mensagem": f"{n} {'bolsa disponível' if n == 1 else 'bolsas disponíveis'}.",
@@ -1175,12 +1257,14 @@ class Handler(BaseHTTPRequestHandler):
             expiring = int(expiry.get("vencendo") or 0)
             if expired:
                 items.append({
+                    "chave": f"vencidas:{expired}",
                     "tipo": "validade", "nivel": "critico",
                     "titulo": f"{expired} {'bolsa vencida' if expired == 1 else 'bolsas vencidas'}",
                     "mensagem": "Registre o descarte das bolsas fora da validade.", "pagina": "bags",
                 })
             if expiring:
                 items.append({
+                    "chave": f"vencendo:{expiring}",
                     "tipo": "validade", "nivel": "atencao",
                     "titulo": f"{expiring} {'bolsa vence' if expiring == 1 else 'bolsas vencem'} em até 7 dias",
                     "mensagem": "Priorize o uso dessas bolsas.", "pagina": "bags",
@@ -1199,13 +1283,14 @@ class Handler(BaseHTTPRequestHandler):
                 names = ", ".join(pending[:3]) + ("…" if len(pending) > 3 else "")
                 one = len(pending) == 1
                 items.append({
+                    "chave": f"cadastro:{len(pending)}",
                     "tipo": "cadastro", "nivel": "atencao",
                     "titulo": f"{len(pending)} {'cadastro de doador precisa' if one else 'cadastros de doadores precisam'} de atualização",
                     "mensagem": f"Sem atualização há mais de 1 ano: {names}", "pagina": "donors",
                 })
         order = {"critico": 0, "atencao": 1}
         items.sort(key=lambda item: order.get(item["nivel"], 2))
-        self.send_json({"ativas": True, "total": len(items), "itens": items})
+        return items
 
     def create_donor(self, data, actor_id):
         name = str(data.get("nome", "")).strip()
