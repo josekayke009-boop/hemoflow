@@ -28,9 +28,56 @@ def password_hash(password: str) -> str:
     )
 
 
+def ask_secret(prompt: str) -> str:
+    """Lê uma senha mostrando * a cada tecla (Windows e Linux/console da nuvem).
+    Se o terminal não permitir, usa o getpass comum (sem mostrar nada)."""
+    print(prompt, end="", flush=True)
+    chars = []
+    try:
+        if os.name == "nt":
+            import msvcrt
+            read = msvcrt.getwch
+            restore = None
+        else:
+            import termios
+            import tty
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            tty.setraw(fd)
+            read = lambda: sys.stdin.read(1)  # noqa: E731
+            restore = lambda: termios.tcsetattr(fd, termios.TCSADRAIN, old)  # noqa: E731
+    except Exception:
+        print()
+        return getpass.getpass("(digite e aperte Enter; nada aparece na tela) ")
+    try:
+        while True:
+            ch = read()
+            if ch in ("\r", "\n"):
+                break
+            if ch == "\x03":
+                raise KeyboardInterrupt
+            if ch in ("\x08", "\x7f"):
+                if chars:
+                    chars.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                continue
+            if ch in ("\x00", "\xe0", "\x1b"):  # teclas especiais: ignora
+                continue
+            chars.append(ch)
+            sys.stdout.write("*")
+            sys.stdout.flush()
+    finally:
+        if restore:
+            restore()
+        sys.stdout.write("\r\n")
+        sys.stdout.flush()
+    return "".join(chars)
+
+
 def main():
     print("Configuração inicial do administrador HemoFlow")
-    print("As senhas serão solicitadas sem aparecer na tela.\n")
+    print("Ao digitar as senhas aparecem asteriscos (*).\n")
 
     db_user = os.environ.get("HEMOFLOW_DB_USER", "hemoflow_app")
     db_host = os.environ.get("HEMOFLOW_DB_HOST", "127.0.0.1")
@@ -47,13 +94,16 @@ def main():
         print("Informe um nome e um e-mail válido.")
         sys.exit(1)
 
-    admin_password = getpass.getpass("Crie uma senha para o administrador (mínimo 12 caracteres): ")
-    if len(admin_password) < 12:
-        print("Use uma senha com pelo menos 12 caracteres.")
-        sys.exit(1)
-    confirmation = getpass.getpass("Repita a senha do administrador: ")
-    if admin_password != confirmation:
-        print("As senhas não conferem.")
+    for attempt in range(1, 4):
+        admin_password = ask_secret("Crie uma senha para o administrador (mínimo 12 caracteres): ")
+        if len(admin_password) < 12:
+            print(f"A senha tem {len(admin_password)} caracteres; use pelo menos 12. Tente de novo.\n")
+            continue
+        if ask_secret("Repita a senha do administrador: ") == admin_password:
+            break
+        print("As senhas não conferem. Tente de novo.\n")
+    else:
+        print("Não foi possível confirmar a senha. Nada foi gravado.")
         sys.exit(1)
 
     try:
