@@ -59,18 +59,47 @@ DB_NAME = os.environ.get("HEMOFLOW_DB_NAME", "hemoflow")
 DB_USER = os.environ.get("HEMOFLOW_DB_USER", "hemoflow_app")
 DB_PASSWORD = os.environ.get("HEMOFLOW_DB_PASSWORD", "")
 EMAIL_USER = os.environ.get("HEMOFLOW_EMAIL_USER", "")
-EMAIL_PASSWORD = os.environ.get("HEMOFLOW_EMAIL_PASSWORD", "")
+EMAIL_PASSWORD = os.environ.get("HEMOFLOW_EMAIL_PASSWORD", "").replace(" ", "")
 EMAIL_HOST = os.environ.get("HEMOFLOW_EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.environ.get("HEMOFLOW_EMAIL_PORT", "587"))
 SESSION_COOKIE = "hemoflow_session"
 SESSION_TTL = 8 * 60 * 60
 SESSIONS: dict[str, dict] = {}
 LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+# Limite de pedidos de recuperação por IP (evita usar o sistema para enviar e-mails em massa).
+RESET_REQUESTS: dict[str, list[float]] = {}
+MAX_RESET_REQUESTS = 5
 MAX_LOGIN_ATTEMPTS = 10
 LOGIN_WINDOW = 15 * 60
 MAX_ACCOUNT_FAILURES = 5
 
 BLOOD_TYPES = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
+UFS = {"AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB",
+       "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"}
+# Endereço do doador (migração 002): coluna -> (rótulo, tamanho máximo, obrigatório)
+ADDRESS_FIELDS = {
+    "cep": ("CEP", 9, False),
+    "logradouro": ("rua/avenida", 150, True),
+    "numero": ("número", 10, True),
+    "complemento": ("complemento", 80, False),
+    "bairro": ("bairro", 80, True),
+    "cidade": ("cidade", 80, True),
+    "uf": ("estado (UF)", 2, True),
+}
+
+
+def only_digits(value) -> str:
+    return re.sub(r"\D", "", str(value or ""))
+
+
+def format_phone(value) -> str:
+    """(81) 98765-4321 ou (81) 3456-7890. Levanta ValueError se não tiver 10 ou 11 dígitos."""
+    d = only_digits(value)
+    if len(d) == 11:
+        return f"({d[:2]}) {d[2:7]}-{d[7:]}"
+    if len(d) == 10:
+        return f"({d[:2]}) {d[2:6]}-{d[6:]}"
+    raise ValueError("Informe o telefone com DDD: (00) 00000-0000.")
 STATUSES = {"DISPONIVEL", "RESERVADA", "TRANSFUNDIDA", "DESCARTADA", "QUARENTENA"}
 TRANSITIONS = {
     "DISPONIVEL": {"RESERVADA", "TRANSFUNDIDA", "DESCARTADA", "QUARENTENA"},
@@ -246,21 +275,62 @@ def ensure_password_reset_table():
             "Execute sql/criar_recuperacao_senhas.sql com um usuário administrador do MySQL.", 503)
 
 
-def send_recovery_email(to_email: str, reset_url: str):
+def smtp_connection():
+    server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=20)
+    server.starttls()
+    server.login(EMAIL_USER, EMAIL_PASSWORD)
+    return server
+
+
+def check_email_login():
+    """Usado por iniciar_hemoflow.ps1: confere o Gmail e a senha de app antes de abrir o sistema."""
+    if not EMAIL_USER or not EMAIL_PASSWORD:
+        raise SystemExit("Informe o Gmail e a senha de app.")
+    try:
+        with smtp_connection():
+            pass
+    except (smtplib.SMTPAuthenticationError, smtplib.SMTPServerDisconnected):
+        # O Gmail às vezes só fecha a conexão (em vez de responder 535) quando a senha não é aceita.
+        raise SystemExit(f"  O Gmail recusou o login ({len(EMAIL_PASSWORD)} caracteres digitados). "
+                         "Use a SENHA DE APP de 16 letras criada em myaccount.google.com/apppasswords "
+                         "na MESMA conta do Gmail informado, não a senha normal.")
+    except (OSError, smtplib.SMTPException) as exc:
+        raise SystemExit(f"  Não foi possível conectar ao Gmail: {type(exc).__name__}: {exc}")
+
+
+def send_recovery_email(to_email: str, reset_url: str, name: str = ""):
     if not EMAIL_USER or not EMAIL_PASSWORD:
         raise RuntimeError("Configure HEMOFLOW_EMAIL_USER e HEMOFLOW_EMAIL_PASSWORD.")
+    first = (name or "").split(" ")[0]
+    greeting = f"Olá, {first}!" if first else "Olá!"
     message = EmailMessage()
-    message["Subject"] = "Recuperação de senha — HemoFlow"
-    message["From"] = EMAIL_USER
+    message["Subject"] = "Redefinição de senha — HemoFlow"
+    message["From"] = f"HemoFlow <{EMAIL_USER}>"
     message["To"] = to_email
     message.set_content(
-        "Recebemos uma solicitação para redefinir a senha da sua conta HemoFlow.\n\n"
-        f"Use este link em até 30 minutos: {reset_url}\n\n"
-        "Se você não solicitou esta alteração, ignore este e-mail."
+        f"{greeting}\n\n"
+        "Recebemos uma solicitação para redefinir a senha da sua conta no HemoFlow.\n\n"
+        f"Para criar uma nova senha, acesse o link abaixo (válido por 30 minutos e de uso único):\n{reset_url}\n\n"
+        "Se você não fez essa solicitação, ignore este e-mail: sua senha continua a mesma.\n\n"
+        "HemoFlow · Gestão de hemocentro"
     )
-    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=20) as server:
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASSWORD)
+    safe_url = reset_url.replace("&", "&amp;").replace('"', "&quot;")
+    safe_greeting = greeting.replace("<", "&lt;").replace(">", "&gt;")
+    message.add_alternative(f"""<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f4f6fa;font-family:Arial,Helvetica,sans-serif;color:#111a31">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;border:1px solid #dce5f1">
+<tr><td style="background:#8b0a1a;border-radius:16px 16px 0 0;padding:22px 28px;color:#ffffff;font-size:22px;font-weight:bold">HemoFlow</td></tr>
+<tr><td style="padding:28px">
+<p style="font-size:16px;margin:0 0 14px">{safe_greeting}</p>
+<p style="font-size:15px;line-height:1.6;margin:0 0 22px">Recebemos uma solicitação para redefinir a senha da sua conta no HemoFlow. Clique no botão abaixo para criar uma nova senha.</p>
+<p style="margin:0 0 24px"><a href="{safe_url}" style="display:inline-block;background:#c90012;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 26px;border-radius:10px">Criar nova senha</a></p>
+<p style="font-size:13px;line-height:1.6;color:#617898;margin:0 0 8px">O link vale por <b>30 minutos</b> e só pode ser usado uma vez.</p>
+<p style="font-size:13px;line-height:1.6;color:#617898;margin:0 0 8px">Se o botão não funcionar, copie e cole este endereço no navegador:<br><span style="word-break:break-all">{safe_url}</span></p>
+<p style="font-size:13px;line-height:1.6;color:#617898;margin:16px 0 0">Se você não fez essa solicitação, ignore este e-mail: sua senha continua a mesma.</p>
+</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #edf1f7;font-size:12px;color:#8093b4">HemoFlow · Gestão de hemocentro</td></tr>
+</table></td></tr></table></body></html>""", subtype="html")
+    with smtp_connection() as server:
         server.send_message(message)
 
 
@@ -321,6 +391,8 @@ MIGRATION_001 = {
     ("profissionais", "email"): "column",
     ("profissionais", "uq_profissionais_email"): "index",
 }
+MIGRATION_002 = {("doadores", column): "column" for column in ADDRESS_FIELDS}
+SCHEMA_KINDS = {**MIGRATION_001, **MIGRATION_002}
 _SCHEMA_OK: set = set()
 
 
@@ -328,7 +400,7 @@ def schema_has(table: str, name: str) -> bool:
     key = (table, name)
     if key in _SCHEMA_OK:
         return True
-    if MIGRATION_001.get(key) == "column":
+    if SCHEMA_KINDS.get(key) == "column":
         sql = """SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
                  WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND COLUMN_NAME=%s LIMIT 1"""
     else:
@@ -342,6 +414,14 @@ def schema_has(table: str, name: str) -> bool:
     if found:
         _SCHEMA_OK.add(key)
     return found
+
+
+def pending_migration_002() -> list[str]:
+    return [f"{table}.{name}" for table, name in MIGRATION_002 if not schema_has(table, name)]
+
+
+def donor_address_ready() -> bool:
+    return not pending_migration_002()
 
 
 def pending_migration_001() -> list[str]:
@@ -618,13 +698,25 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Informe um e-mail válido.")
         if not EMAIL_USER or not EMAIL_PASSWORD:
             raise ApiError("O envio de e-mail ainda não está configurado no servidor.", 503)
+        ip, now = self.client_ip(), time.time()
+        recent = [stamp for stamp in RESET_REQUESTS.get(ip, []) if now - stamp < LOGIN_WINDOW]
+        if len(recent) >= MAX_RESET_REQUESTS:
+            RESET_REQUESTS[ip] = recent
+            raise ApiError("Muitas solicitações. Aguarde 15 minutos e tente novamente.", 429)
+        RESET_REQUESTS[ip] = recent + [now]
         ensure_password_reset_table()
         with connect_db() as db:
             cur = db.cursor(dictionary=True)
-            cur.execute("SELECT id,email FROM usuarios WHERE email=%s AND status='ATIVO' LIMIT 1", (email,))
+            cur.execute("""
+                SELECT u.id, u.email, u.nome,
+                       EXISTS(SELECT 1 FROM recuperacao_senhas r WHERE r.usuario_id = u.id
+                              AND r.criado_em > DATE_SUB(NOW(), INTERVAL 1 MINUTE)) AS pedido_recente
+                FROM usuarios u WHERE u.email=%s AND u.status='ATIVO' LIMIT 1
+            """, (email,))
             user = cur.fetchone()
             cur.close()
-        if not user:
+        # Conta inexistente, ou já recebeu um link no último minuto: mesma resposta, sem novo e-mail.
+        if not user or user.get("pedido_recente"):
             return self.send_json(generic)
         raw_token = secrets.token_urlsafe(32)
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
@@ -642,11 +734,11 @@ class Handler(BaseHTTPRequestHandler):
         base_url = PUBLIC_URL or f"http://{'127.0.0.1' if HOST == '0.0.0.0' else HOST}:{PORT}"
         reset_url = f"{base_url}/?reset_token={raw_token}"
         try:
-            send_recovery_email(user["email"], reset_url)
+            send_recovery_email(user["email"], reset_url, user.get("nome") or "")
         except Exception as exc:
             # Resposta igual à de e-mail inexistente: um erro 502 só para contas que
             # existem revelaria quais e-mails estão cadastrados. A falha fica no log.
-            print("Falha ao enviar e-mail de recuperação:", type(exc).__name__)
+            print("Falha ao enviar e-mail de recuperação:", type(exc).__name__, exc)
             with connect_db() as db:
                 cur = db.cursor()
                 cur.execute("UPDATE recuperacao_senhas SET usado_em=NOW() WHERE token_hash=%s", (token_hash,))
@@ -1078,9 +1170,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def list_donors(self, query):
         search = query.get("q", [""])[0].strip()[:100]
-        sql = """
+        address = (", " + ", ".join(ADDRESS_FIELDS)) if donor_address_ready() else ""
+        sql = f"""
             SELECT id, nome, data_nascimento, email, telefone, codigo_ficticio,
-                   status, observacoes, tipo_sanguineo, peso_kg, criado_em, atualizado_em,
+                   status, observacoes, tipo_sanguineo, peso_kg, criado_em, atualizado_em{address},
                    (status = 'ATIVO' AND atualizado_em < DATE_SUB(NOW(), INTERVAL %s MONTH)) AS revisao_pendente
             FROM doadores
         """
@@ -1306,8 +1399,26 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Informe um e-mail válido.")
         if not phone:
             raise ApiError("Informe o telefone.")
-        if len(phone) > 30:
-            raise ApiError("Telefone muito longo.")
+        try:
+            phone = format_phone(phone)
+        except ValueError as exc:
+            raise ApiError(str(exc))
+        address = {}
+        for column, (label, size, required) in ADDRESS_FIELDS.items():
+            value = " ".join(str(data.get(column, "") or "").split())
+            if required and not value:
+                raise ApiError(f"Informe {'o' if label in ('número', 'bairro', 'CEP', 'complemento', 'estado (UF)') else 'a'} {label}.")
+            if len(value) > size:
+                raise ApiError(f"O campo {label} aceita até {size} caracteres.")
+            address[column] = value or None
+        if address["cep"]:
+            cep = only_digits(address["cep"])
+            if len(cep) != 8:
+                raise ApiError("CEP inválido: use 00000-000.")
+            address["cep"] = f"{cep[:5]}-{cep[5:]}"
+        address["uf"] = (address["uf"] or "").upper()
+        if address["uf"] not in UFS:
+            raise ApiError("Selecione um estado (UF) válido.")
         try:
             birth = parse_date(birth_text, "data de nascimento")
         except ValueError as exc:
@@ -1324,6 +1435,10 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("O peso deve estar entre 1 e 500 kg.")
         # Código fictício gerado pelo sistema; o CPF digitado no protótipo não é armazenado.
         code = "DOA-" + uuid.uuid4().hex[:10].upper()
+        if not donor_address_ready():
+            raise ApiError(
+                "O banco ainda não guarda o endereço dos doadores. Um administrador do MySQL "
+                "precisa executar scripts/migracao_002_endereco_doador.py.", 503)
         conn = connect_db()
         try:
             cur = conn.cursor()
@@ -1337,9 +1452,11 @@ class Handler(BaseHTTPRequestHandler):
             cur.execute("""
                 INSERT INTO doadores
                 (nome, data_nascimento, email, telefone, codigo_ficticio, status,
-                 observacoes, tipo_sanguineo, peso_kg)
-                VALUES (%s,%s,%s,%s,%s,'ATIVO',%s,%s,%s)
-            """, (name, birth, email, phone, code, note, blood, weight))
+                 observacoes, tipo_sanguineo, peso_kg,
+                 cep, logradouro, numero, complemento, bairro, cidade, uf)
+                VALUES (%s,%s,%s,%s,%s,'ATIVO',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (name, birth, email, phone, code, note, blood, weight,
+                  *[address[column] for column in ADDRESS_FIELDS]))
             donor_id = cur.lastrowid
             cur.execute("""
                 INSERT INTO historico_auditoria
@@ -1476,8 +1593,13 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Informe um e-mail válido.")
         if not role or len(role) > 100:
             raise ApiError("Selecione a função profissional.")
-        if len(council) > 80 or len(phone) > 30:
-            raise ApiError("Conselho ou telefone excede o limite permitido.")
+        if len(council) > 80:
+            raise ApiError("O conselho profissional aceita até 80 caracteres.")
+        if phone:
+            try:
+                phone = format_phone(phone)
+            except ValueError as exc:
+                raise ApiError(str(exc))
         if not (schema_has("profissionais", "email") and schema_has("profissionais", "uq_profissionais_email")):
             raise ApiError(
                 "O banco ainda não guarda o e-mail dos profissionais. Um administrador do MySQL "
@@ -1593,6 +1715,10 @@ def main():
         if pending:
             print("AVISO: migração 001 (e-mail único) pendente:", ", ".join(pending))
             print("  Execute: python scripts/migracao_001_email_unico.py  (com usuário administrativo)")
+        pending = pending_migration_002()
+        if pending:
+            print("AVISO: migração 002 (endereço do doador) pendente:", ", ".join(pending))
+            print("  Execute: python scripts/migracao_002_endereco_doador.py  (com usuário administrativo)")
         server = HemoFlowServer((HOST, PORT), Handler)
     except OSError as exc:
         print(f"Não foi possível usar a porta {PORT}: {exc}")

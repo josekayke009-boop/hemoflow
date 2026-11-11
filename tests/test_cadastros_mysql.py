@@ -107,6 +107,8 @@ class FakeDB:
 DONOR = {
     "nome": "Doador Ficticio", "email": "Teste.Doador@Exemplo.com", "telefone": "(81) 90000-0000",
     "data_nascimento": "1995-05-10", "tipo_sanguineo": "O+", "peso_kg": "72", "observacoes": "",
+    "cep": "50030230", "logradouro": "Rua da Aurora", "numero": "100", "complemento": "",
+    "bairro": "Boa Vista", "cidade": "Recife", "uf": "pe",
 }
 PROFESSIONAL = {
     "nome": "Profissional Ficticio", "email": "Prof@Exemplo.com", "telefone": "(81) 90000-0001",
@@ -198,6 +200,40 @@ class CadastrosMySQLTests(unittest.TestCase):
         status, data = self.post("/api/donors", {**DONOR, "telefone": ""})
         self.assertEqual(status, 400)
         self.assertEqual(data["erro"], "Informe o telefone.")
+
+    def test_doador_grava_endereco_e_formata_telefone_e_cep(self):
+        status, data = self.post("/api/donors", {**DONOR, "telefone": "81900000000"})
+        self.assertEqual(status, 201, data)
+        (sql, params), = self.db.inserts("doadores")
+        for column in ("cep", "logradouro", "numero", "complemento", "bairro", "cidade", "uf"):
+            self.assertIn(column, sql)
+        self.assertIn("(81) 90000-0000", params)
+        self.assertIn("50030-230", params)
+        self.assertIn("PE", params)
+        self.assertIn(None, params)            # complemento vazio vira NULL
+
+    def test_doador_endereco_obrigatorio(self):
+        for field, message in [("logradouro", "Informe a rua/avenida."), ("numero", "Informe o número."),
+                               ("bairro", "Informe o bairro."), ("cidade", "Informe a cidade."),
+                               ("uf", "Informe o estado (UF).")]:
+            status, data = self.post("/api/donors", {**DONOR, field: ""})
+            self.assertEqual((status, data["erro"]), (400, message), field)
+        self.assertEqual(self.db.inserts("doadores"), [])
+
+    def test_doador_uf_cep_e_telefone_invalidos(self):
+        status, data = self.post("/api/donors", {**DONOR, "uf": "XX"})
+        self.assertEqual((status, data["erro"]), (400, "Selecione um estado (UF) válido."))
+        status, data = self.post("/api/donors", {**DONOR, "cep": "123"})
+        self.assertEqual((status, data["erro"]), (400, "CEP inválido: use 00000-000."))
+        status, data = self.post("/api/donors", {**DONOR, "telefone": "12345"})
+        self.assertEqual((status, data["erro"]), (400, "Informe o telefone com DDD: (00) 00000-0000."))
+
+    def test_doador_com_migracao_002_pendente_avisa_e_nao_grava(self):
+        self.db.schema_applied = False
+        status, data = self.post("/api/donors", DONOR)
+        self.assertEqual(status, 503)
+        self.assertIn("migracao_002_endereco_doador.py", data["erro"])
+        self.assertEqual(self.db.inserts("doadores"), [])
 
     # ---------- profissionais ----------
     def test_profissional_novo_grava_email(self):

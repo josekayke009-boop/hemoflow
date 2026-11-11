@@ -106,3 +106,35 @@ body.auth-required>.sidebar,body.auth-required>.main,body.auth-required>#bag-dia
 .notif-item.read .notif-dot{background:#cfd8e6!important}
 .notif-item.read em{color:var(--muted)!important;background:#f1f4f9!important}
 .notif-markall{border:0;border-bottom:1px solid #edf1f7;background:#fbfcfe;padding:9px 16px;text-align:right;color:var(--red);font-size:12px;font-weight:600}
+
+/* ---- Avisos (toast) ---- */
+.toast{display:flex;align-items:center;gap:12px;max-width:min(420px,calc(100vw - 32px));font-weight:600;font-size:14px;border-left:5px solid transparent;animation:toast-in .25s ease-out}
+.toast.hidden{display:none}
+.toast-icon{flex-shrink:0;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:#ffffff26}
+.toast-success{background:#ecfdf5;color:#065f46;border-left-color:var(--green);box-shadow:0 10px 30px #0f5c4626}
+.toast-success .toast-icon{background:var(--green);color:#fff}
+.toast-error{background:#fff1f2;color:#9f1239;border-left-color:var(--red);box-shadow:0 10px 30px #9f123926}
+.toast-error .toast-icon{background:var(--red);color:#fff}
+@keyframes toast-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(max-width:650px){.toast{left:16px;right:16px;bottom:80px;max-width:none}}
+
+/* ---- Janela de confirmação ---- */
+.confirm-modal{width:min(440px,calc(100% - 30px))}
+.confirm-modal form{text-align:center;padding:30px 28px 24px}
+.confirm-modal h2{font:800 21px Manrope,sans-serif;margin:14px 0 8px}
+.confirm-modal .modal-actions{justify-content:center}
+.confirm-icon{width:54px;height:54px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font:800 26px Manrope,sans-serif;background:#edf4ff;color:var(--blue)}
+.confirm-icon.danger{background:var(--red-pale);color:var(--red)}
+.btn-danger{background:#c90012}.btn-danger:hover{background:#a3000e}
+
+/* ---- Formulário: título de seção ---- */
+.form-section-title{font-size:16px;margin:30px 0 18px;padding-top:24px;border-top:1px solid #edf1f7}
+/* Mensagem de sucesso em formulários (ex.: recuperação de senha) */
+.form-success{margin-top:14px;color:#065f46;background:#ecfdf5;border-left:4px solid var(--green);padding:11px 13px;border-radius:10px;font-size:13px;line-height:1.5}
+/* Olhinho dos campos de senha */
+.pw-wrap{position:relative;display:block}
+.pw-wrap>input{padding-right:52px!important}
+.pw-toggle{position:absolute;right:6px;bottom:0;height:54px;width:44px;display:grid;place-items:center;border:0;background:transparent;color:#8093b4;border-radius:10px}
+.pw-toggle:hover{color:var(--ink)}
+.pw-toggle:focus-visible{outline:3px solid #8bb0ff;outline-offset:-3px}
+

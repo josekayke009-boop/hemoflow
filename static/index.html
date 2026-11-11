@@ -39,10 +39,13 @@
         <input id="recovery-email" type="email" autocomplete="email" placeholder="nome@exemplo.com" required>
       </label>
       <label id="recovery-password-label" class="hidden">Nova senha
-        <input id="recovery-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Mínimo de 10 caracteres">
+        <input id="recovery-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Mínimo de 10 caracteres, com letras e números">
+      </label>
+      <label id="recovery-confirm-label" class="hidden">Confirmar nova senha
+        <input id="recovery-confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Digite a nova senha de novo">
       </label>
       <div id="recovery-error" class="form-error hidden" role="alert"></div>
-      <div id="recovery-success" class="form-error hidden" role="status"></div>
+      <div id="recovery-success" class="form-success hidden" role="status"></div>
       <button id="recovery-submit" class="btn btn-primary full" type="submit">Enviar link de recuperação</button>
       <div class="login-footer"><a href="#" id="back-to-login">Voltar para o login</a><p>HemoFlow · Gestão segura de hemocentro</p></div>
     </form>
@@ -83,7 +86,7 @@
         <div class="user-chip"><span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span><button id="logout-button" class="logout-button" type="button">Sair</button></div>
       </div>
     </header>
-    <div id="toast" class="toast hidden" role="status"></div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"><span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span></div>
     <section id="page-content" class="page-content"></section>
   </main>
 
@@ -115,6 +118,17 @@
       </div>
       <div id="transition-error" class="form-error hidden" role="alert"></div>
       <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-transition">Cancelar</button><button class="btn btn-primary" type="submit">Confirmar movimentação</button></div>
+    </form>
+  </dialog>
+  <dialog id="confirm-dialog" class="modal confirm-modal" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <div class="confirm-icon" id="confirm-icon" aria-hidden="true">!</div>
+      <h2 id="confirm-title">Confirmar</h2>
+      <p id="confirm-message" class="muted"></p>
+      <div class="modal-actions">
+        <button value="cancel" class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
+        <button value="ok" class="btn btn-primary" id="confirm-ok">Confirmar</button>
+      </div>
     </form>
   </dialog>
   <script src="/app.js" defer></script>

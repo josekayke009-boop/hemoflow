@@ -24,10 +24,26 @@ $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $out = Join-Path (Split-Path $PSScriptRoot -Parent | Split-Path -Parent) "HemoFlow_backups\banco_$ts"
 New-Item -ItemType Directory -Force $out | Out-Null
 
-$sec = Read-Host "Senha do MySQL para '$Usuario'" -AsSecureString
-$env:MYSQL_PWD = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-    [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
 $common = @("--host=$Servidor", "--port=$Porta", "--user=$Usuario", "--default-character-set=utf8mb4")
+
+# Confere a senha antes de começar; se estiver errada, pede de novo (até 3 vezes).
+$conectado = $false
+for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
+    Write-Host ""
+    Write-Host "(Tentativa $tentativa de 3) Use a senha do usuario '$Usuario' do MySQL - NAO a do hemoflow_app."
+    $sec = Read-Host "Senha do MySQL para '$Usuario'" -AsSecureString
+    $env:MYSQL_PWD = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+    & $mysql @common --batch --skip-column-names -e "SELECT 1" 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { $conectado = $true; Write-Host "Senha correta."; break }
+    Write-Host "O MySQL recusou essa senha para '$Usuario'. Nada foi alterado. Tente novamente."
+}
+if (-not $conectado) {
+    Remove-Item Env:\MYSQL_PWD -ErrorAction SilentlyContinue
+    Write-Host "Backup cancelado: senha nao confirmada. Nenhum arquivo foi gerado."
+    Remove-Item $out -ErrorAction SilentlyContinue
+    exit 1
+}
 
 try {
     Write-Host "1/3 Backup completo..."
