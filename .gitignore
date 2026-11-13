@@ -14,9 +14,8 @@ secrets/
 *.sqlite
 *.sqlite3
 *.sql
-!sql/*.sql
-!sql/migracoes/*.sql
-!sql/instalacao/*.sql
+!banco/migracoes/*.sql
+!banco/instalacao/*.sql
 *.bak
 _backup_auditoria_*/
 
