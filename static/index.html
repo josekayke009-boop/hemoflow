@@ -16,6 +16,15 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="auth-required">
+  <!-- Fundo animado da tela de login: glóbulos vermelhos em profundidade + logo em 3D -->
+  <div class="login-bg" aria-hidden="true">
+    <canvas id="login-cells"></canvas>
+    <div class="login-hero" id="login-hero">
+      <div class="login-hero-glow"></div>
+      <img class="login-hero-logo" src="/icons/icon-512.png" alt="">
+      <div class="login-hero-text"><strong>HemoFlow</strong><span>Gestão inteligente de hemocentro</span></div>
+    </div>
+  </div>
   <section id="login-screen" class="login-screen">
     <form id="login-form" class="login-card">
       <div class="login-brand"><img class="brand-logo" src="/hemoflow-icon.png" alt="Logo HemoFlow"><div><strong>HemoFlow</strong><small>Gestão de hemocentro</small></div></div>
@@ -139,6 +148,7 @@
       </div>
     </form>
   </dialog>
+  <script src="/login-bg.js" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>

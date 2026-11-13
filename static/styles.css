@@ -145,3 +145,50 @@ body.auth-required>.sidebar,body.auth-required>.main,body.auth-required>#bag-dia
 /* ---- Instalação do app ---- */
 .install-steps{margin:10px 0 0;padding-left:20px;line-height:1.9;color:#304766}
 
+/* ================= Tela de login viva ================= */
+.login-bg{display:none;position:fixed;inset:0;z-index:0;overflow:hidden;
+  background:radial-gradient(1200px 800px at 18% 30%,#c4102a 0%,transparent 60%),
+             radial-gradient(900px 700px at 85% 85%,#5c0410 0%,transparent 65%),
+             linear-gradient(135deg,#3a0209 0%,#7d0816 45%,#a50d22 70%,#4b030c 100%);
+  background-size:140% 140%;animation:login-bg-shift 26s ease-in-out infinite alternate}
+body.auth-required .login-bg{display:block}
+#login-cells{position:absolute;inset:0}
+@keyframes login-bg-shift{0%{background-position:0% 0%}100%{background-position:100% 100%}}
+
+/* Logo em 3D: flutua, inclina com o mouse/celular (variáveis vindas do login-bg.js) e "pulsa" como um coração */
+.login-hero{--tilt-x:0deg;--tilt-y:0deg;position:absolute;left:24%;top:50%;width:min(34vw,420px);
+  transform:translate(-50%,-50%);perspective:1100px;text-align:center;color:#fff;pointer-events:none}
+.login-hero-logo{display:block;width:100%;border-radius:22%;
+  transform:rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(0);
+  box-shadow:0 40px 80px -20px #1a0004cc,0 0 0 1px #ffffff22 inset;
+  animation:login-float 7s ease-in-out infinite;transition:transform .15s linear;will-change:transform}
+.login-hero-glow{position:absolute;left:50%;top:42%;width:120%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:50%;background:radial-gradient(circle,#ff3a4fb3 0%,#ff3a4f33 35%,transparent 65%);
+  filter:blur(10px);animation:login-heartbeat 2.4s ease-in-out infinite;z-index:-1}
+.login-hero-text{margin-top:34px;text-shadow:0 4px 18px #2a000799}
+.login-hero-text strong{display:block;font:800 clamp(34px,4vw,54px)/1 Manrope,sans-serif;letter-spacing:-1px}
+.login-hero-text span{display:block;margin-top:10px;font-size:clamp(15px,1.4vw,19px);color:#ffd7db}
+@keyframes login-float{0%,100%{translate:0 -10px}50%{translate:0 12px}}
+@keyframes login-heartbeat{0%,100%{opacity:.55;scale:.94}14%{opacity:.95;scale:1.04}28%{opacity:.6;scale:.97}42%{opacity:.9;scale:1.02}70%{opacity:.55;scale:.94}}
+
+/* Cartão de login sobre o fundo: vidro fosco */
+.login-screen{position:relative;z-index:1;background:transparent!important}
+body.auth-required .login-screen .login-card{background:rgba(255,255,255,.88);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);
+  border:1px solid rgba(255,255,255,.6);box-shadow:0 30px 70px -18px #1a0004b3}
+
+/* Computador: logo à esquerda, login à direita */
+@media(min-width:1000px){
+  .login-screen{justify-content:flex-end;padding-right:max(7vw,48px)}
+}
+/* Tablet/celular: logo discreto atrás do cartão */
+@media(max-width:999px){
+  .login-hero{left:50%;top:22%;width:min(56vw,260px);opacity:.35}
+  .login-hero-text{display:none}
+}
+/* Quem pediu "reduzir movimento" no sistema vê tudo parado */
+@media(prefers-reduced-motion:reduce){
+  .login-bg,.login-hero-logo,.login-hero-glow{animation:none}
+  .login-hero-logo{transition:none}
+}
+
