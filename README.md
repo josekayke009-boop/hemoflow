@@ -1,61 +1,79 @@
 # HemoFlow
 
-Sistema web acadêmico de gerenciamento de banco de sangue: doadores, profissionais, contas de acesso com perfis, bolsas, estoque e movimentações. Projeto Inovadores, ADS (4º período), UNINASSAU.
+Sistema web para gestão de hemocentro: cadastro de doadores e profissionais, controle do estoque de bolsas de sangue, movimentações, alertas e contas de acesso com perfis.
 
+Projeto da disciplina **Projeto Inovadores** — Análise e Desenvolvimento de Sistemas (4º período), UNINASSAU.
 
+- **Sistema no ar:** https://hemoflow-production.up.railway.app
+- **Código:** https://github.com/josekayke009-boop/hemoflow
 
-**Sistema no ar:** https://hemoflow-production.up.railway.app  
-**Código:** https://github.com/josekayke009-boop/hemoflow
+<img src="docs/qrcode/qrcode-hemoflow.png" alt="QR Code para abrir o HemoFlow no celular" width="170">
 
-<img src="docs/qrcode/qrcode-hemoflow.png" alt="QR Code para abrir o HemoFlow no celular" width="180">
+Aponte a câmera do celular para abrir o sistema. Ele também pode ser instalado como aplicativo: no Android (Chrome), menu → **Instalar aplicativo**; no iPhone (Safari), Compartilhar → **Adicionar à Tela de Início**.
 
-Aponte a câmera do celular para abrir o HemoFlow. Para instalar como aplicativo: Android (Chrome) → menu → **Instalar aplicativo**; iPhone (Safari) → Compartilhar → **Adicionar à Tela de Início**.
+## Funcionalidades
 
-## Arquitetura
+| Área | O que faz |
+|---|---|
+| Login e acesso | Login com sessão segura, bloqueio após tentativas erradas, recuperação de senha por e-mail |
+| Perfis | Administrador, Responsável técnico, Operador de estoque e Consulta, com permissões verificadas no servidor |
+| Doadores | Cadastro com endereço, máscaras de telefone/CPF/CEP, e-mail único, revisão anual do cadastro e exclusão |
+| Profissionais | Cadastro de profissionais licenciados (e-mail e registro únicos) |
+| Bolsas e estoque | Registro de bolsas, estoque por tipo sanguíneo, validade e situação (disponível, reservada, quarentena...) |
+| Movimentações | Reserva, liberação, transfusão e descarte, com histórico |
+| Alertas | Notificações de estoque crítico, bolsas vencendo/vencidas e cadastros desatualizados |
+| Relatórios | Indicadores do estoque e distribuição por tipo sanguíneo |
+| Aplicativo | Instalável no celular e no computador (PWA), com consulta do estoque sem internet |
 
-- **Backend:** Python (biblioteca padrão `http.server`) em `app_mysql.py`
-- **Banco:** MySQL 8.0 via `mysql-connector-python`
-- **Frontend:** HTML, CSS e JavaScript em `static/`, servidos pelo próprio backend
-- **Autenticação:** sessão por cookie `HttpOnly`, senhas com PBKDF2-SHA256, permissões por perfil checadas no servidor
+## Tecnologias
 
-## Requisitos
+- **Backend:** Python 3 (biblioteca padrão `http.server`) — `servidor.py`
+- **Banco de dados:** MySQL 8 (`mysql-connector-python`)
+- **Frontend:** HTML, CSS e JavaScript, sem frameworks — pasta `static/`
+- **Hospedagem:** Railway (contêiner Docker + MySQL), publicação automática a cada envio ao GitHub
 
-- Python 3.10 ou superior
-- MySQL 8.0 com o banco `hemoflow` e o usuário `hemoflow_app`
-- `pip install -r requirements.txt`
+## Estrutura do projeto
 
-## Executar (Windows)
-
-```powershell
-.\iniciar_hemoflow.ps1            # porta 8000
-.\iniciar_hemoflow.ps1 -Porta 8001
+```
+hemoflow/
+├── servidor.py              Servidor: API, login, permissões e regras do sistema
+├── static/                  Telas do sistema
+│   ├── index.html           Página única (login, menu, janelas)
+│   ├── css/estilos.css      Estilos
+│   ├── js/app.js            Lógica das telas (cada tela e botão comentado por seção)
+│   ├── js/fundo-login.js    Animação da tela de login
+│   ├── img/ e icons/        Logo, ícones do aplicativo e imagens do login
+│   └── manifest.webmanifest e sw.js   Aplicativo instalável
+├── banco/
+│   ├── instalacao/          SQL para criar o banco do zero (estrutura e dados de referência)
+│   └── migracoes/           Alterações de estrutura, com o script para desfazer
+├── scripts/                 Backup, migrações, criação do administrador e utilitários
+├── tests/                   Testes automatizados
+├── docs/                    Documentação (arquitetura, banco, testes, implantação, apresentação)
+├── iniciar_hemoflow.ps1     Inicia o sistema no Windows
+├── Dockerfile               Imagem usada na nuvem
+├── requirements.txt         Dependências Python
+└── .env.example             Modelo das variáveis de configuração (sem senhas)
 ```
 
-O script pede a senha do usuário MySQL `hemoflow_app` sem exibi-la. Depois, abra http://127.0.0.1:8000.
+## Como executar no computador
 
-Variáveis de ambiente aceitas: `HEMOFLOW_DB_HOST`, `HEMOFLOW_DB_PORT`, `HEMOFLOW_DB_NAME`, `HEMOFLOW_DB_USER`, `HEMOFLOW_DB_PASSWORD`, `HEMOFLOW_HOST`, `HEMOFLOW_PORT`, `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD`.
-
-## Primeiro administrador
+Pré-requisitos: Python 3.10 ou superior e MySQL 8 com o banco `hemoflow` criado.
 
 ```powershell
-python setup_admin.py
+pip install -r requirements.txt
+.\iniciar_hemoflow.ps1
 ```
 
-## Banco de dados: scripts
+O script pede a senha do usuário `hemoflow_app` do MySQL (e, opcionalmente, o Gmail usado na recuperação de senha). Depois é só abrir http://127.0.0.1:8000.
 
-| Script | Função | Altera o banco? |
-|---|---|---|
-| `scripts/auditar_e_backup_banco.ps1` | backup completo + estrutura + relatório de auditoria em `..\HemoFlow_backups\` | não |
-| `scripts/migracao_001_email_unico.py` | e-mail único em doadores e profissionais (`--verificar`, `--reverter`) | sim, reversível |
-| `sql/criar_recuperacao_senhas.sql` | tabela de recuperação de senha | sim (só cria) |
-| `scripts/instalar_banco_nuvem.py` | cria a estrutura num MySQL novo (nuvem), sem dados pessoais | sim (banco vazio) |
-| `scripts/backup_nuvem.ps1` | backup do banco da nuvem | não |
-| `scripts/migracao_002_endereco_doador.py` | endereço do doador (`--verificar`, `--reverter`) | sim, reversível |
-| `scripts/migracao_003_recuperacao_senha.py` | tabela da recuperação de senha | sim (só cria) |
-| `scripts/redefinir_senha_app.py` | nova senha para o usuário `hemoflow_app` (pede a do root) | só a senha |
-| `migrar_cadastros.py` | colunas de tipo sanguíneo e peso em `doadores` | sim (só adiciona) |
+Primeiro acesso: crie o administrador com
 
-Alterações de estrutura devem ser feitas com um usuário administrativo (ex.: `root`); `hemoflow_app` não tem permissão de `CREATE`. **Faça o backup antes.**
+```powershell
+python scripts/criar_administrador.py
+```
+
+Para criar o banco do zero use `scripts/instalar_banco_nuvem.py` (funciona também num MySQL local vazio). As alterações de estrutura ficam em `scripts/migracao_*.py` e devem ser executadas com um usuário administrativo do MySQL, sempre depois de um backup (`scripts/auditar_e_backup_banco.ps1`).
 
 ## Testes
 
@@ -63,11 +81,28 @@ Alterações de estrutura devem ser feitas com um usuário administrativo (ex.: 
 python -m unittest discover -s tests -v
 ```
 
+São 57 testes automatizados (cadastros, segurança, notificações e recuperação de senha). Os resultados dos testes manuais estão em [docs/relatorio-testes.md](docs/relatorio-testes.md).
+
+## Perfis de acesso
+
+| Perfil | Pode |
+|---|---|
+| Administrador | Tudo, inclusive contas de acesso e cadastro de profissionais |
+| Responsável técnico | Doadores, bolsas e todas as movimentações |
+| Operador de estoque | Registrar bolsas, reservar, liberar e colocar em quarentena |
+| Consulta | Apenas visualizar |
+
 ## Documentação
 
-- `docs/auditoria-2026-11-10.md`: diagnóstico técnico e plano de execução
-- `docs/testes-2026-11-10.md`: registro de testes
-- `docs/implantacao-nuvem.md`: arquitetura na nuvem, comparação de hospedagens, passo a passo, backup e atualização
-- `docs/arquitetura.md` e `docs/banco-de-dados.md` ainda descrevem a versão SQLite antiga e serão reescritos a partir da estrutura real do MySQL.
+- [Arquitetura](docs/arquitetura.md) — como as partes se comunicam
+- [Banco de dados](docs/banco-de-dados.md) — tabelas e relacionamentos
+- [Implantação](docs/implantacao.md) — nuvem, variáveis, atualização e backup
+- [Relatório de testes](docs/relatorio-testes.md)
+- [Relatório de auditoria](docs/relatorio-auditoria.md) — diagnóstico inicial do projeto
+- [Roteiro de apresentação](docs/roteiro-apresentacao.md)
 
-A versão SQLite antiga (`app.py`, `hemoflow.db`) foi retirada do projeto e guardada em `Documents\HemoFlow_SQLite_antigo`.
+## Autoria
+
+Desenvolvido por Jose Kaike — Análise e Desenvolvimento de Sistemas, UNINASSAU.
+
+Desenvolvido com apoio de ferramentas de IA para revisão e testes.
