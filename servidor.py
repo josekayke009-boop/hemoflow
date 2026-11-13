@@ -40,6 +40,8 @@ import smtplib
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import date, datetime
 from email.message import EmailMessage
@@ -88,8 +90,14 @@ EMAIL_USER = os.environ.get("HEMOFLOW_EMAIL_USER", "")
 EMAIL_PASSWORD = os.environ.get("HEMOFLOW_EMAIL_PASSWORD", "").replace(" ", "")
 EMAIL_HOST = os.environ.get("HEMOFLOW_EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.environ.get("HEMOFLOW_EMAIL_PORT", "587"))
-# Caixa que recebe as mensagens da aba Suporte (padrão: a mesma conta que envia).
-SUPPORT_EMAIL = os.environ.get("HEMOFLOW_SUPPORT_EMAIL", "").strip() or EMAIL_USER
+# Brevo (brevo.com): envio de e-mail por HTTPS. Usado na nuvem, onde o Railway
+# bloqueia as portas de e-mail (SMTP). Sem a chave, o envio é pelo Gmail (SMTP).
+BREVO_API_KEY = os.environ.get("HEMOFLOW_BREVO_API_KEY", "").strip()
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+# Remetente dos e-mails (no Brevo, precisa ser um remetente verificado na conta).
+EMAIL_FROM = os.environ.get("HEMOFLOW_EMAIL_FROM", "").strip() or EMAIL_USER
+# Caixa que recebe as mensagens da aba Suporte (padrão: o próprio remetente).
+SUPPORT_EMAIL = os.environ.get("HEMOFLOW_SUPPORT_EMAIL", "").strip() or EMAIL_FROM
 SUPPORT_REQUESTS: dict[int, list[float]] = {}
 MAX_SUPPORT_REQUESTS = 5          # mensagens por usuário...
 SUPPORT_WINDOW = 60 * 60          # ...a cada 1 hora
@@ -326,6 +334,45 @@ def smtp_connection():
     return server
 
 
+def email_configured() -> bool:
+    """Há um jeito de enviar e-mail: Brevo (chave + remetente) ou Gmail (conta + senha de app)."""
+    return bool(BREVO_API_KEY and EMAIL_FROM) or bool(EMAIL_USER and EMAIL_PASSWORD)
+
+
+def send_via_brevo(message: EmailMessage):
+    """Envia a mensagem pela API do Brevo (HTTPS). Erros viram OSError (urllib)."""
+    text_part = message.get_body(("plain",))
+    html_part = message.get_body(("html",))
+    payload = {
+        "sender": {"name": "HemoFlow", "email": EMAIL_FROM},
+        "to": [{"email": message["To"]}],
+        "subject": str(message["Subject"]),
+        "textContent": text_part.get_content() if text_part else "",
+    }
+    if html_part:
+        payload["htmlContent"] = html_part.get_content()
+    if message["Reply-To"]:
+        payload["replyTo"] = {"email": message["Reply-To"]}
+    request = urllib.request.Request(
+        BREVO_URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+        headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read()[:300].decode("utf-8", "replace")
+        raise OSError(f"Brevo recusou o envio (HTTP {exc.code}): {detail}") from None
+
+
+def deliver_email(message: EmailMessage):
+    """Envia pelo Brevo quando a chave existe; senão, pelo Gmail (SMTP)."""
+    if BREVO_API_KEY:
+        return send_via_brevo(message)
+    with smtp_connection() as server:
+        server.send_message(message)
+
+
 def check_email_login():
     """Usado por iniciar_hemoflow.ps1: confere o Gmail e a senha de app antes de abrir o sistema."""
     if not EMAIL_USER or not EMAIL_PASSWORD:
@@ -343,13 +390,13 @@ def check_email_login():
 
 
 def send_recovery_email(to_email: str, reset_url: str, name: str = ""):
-    if not EMAIL_USER or not EMAIL_PASSWORD:
-        raise RuntimeError("Configure HEMOFLOW_EMAIL_USER e HEMOFLOW_EMAIL_PASSWORD.")
+    if not email_configured():
+        raise RuntimeError("Configure o envio de e-mail (Brevo ou Gmail).")
     first = (name or "").split(" ")[0]
     greeting = f"Olá, {first}!" if first else "Olá!"
     message = EmailMessage()
     message["Subject"] = "Redefinição de senha — HemoFlow"
-    message["From"] = f"HemoFlow <{EMAIL_USER}>"
+    message["From"] = f"HemoFlow <{EMAIL_FROM}>"
     message["To"] = to_email
     message.set_content(
         f"{greeting}\n\n"
@@ -374,8 +421,7 @@ def send_recovery_email(to_email: str, reset_url: str, name: str = ""):
 </td></tr>
 <tr><td style="padding:16px 28px;border-top:1px solid #edf1f7;font-size:12px;color:#8093b4">HemoFlow · Gestão de hemocentro</td></tr>
 </table></td></tr></table></body></html>""", subtype="html")
-    with smtp_connection() as server:
-        server.send_message(message)
+    deliver_email(message)
 
 
 def send_support_email(protocol: str, category: str, subject: str, text: str, name: str, email: str):
@@ -383,7 +429,7 @@ def send_support_email(protocol: str, category: str, subject: str, text: str, na
     O "Responder" do Gmail vai direto para o e-mail de quem escreveu (Reply-To)."""
     message = EmailMessage()
     message["Subject"] = f"[Suporte HemoFlow] {protocol} · {category} · {subject}"
-    message["From"] = f"HemoFlow <{EMAIL_USER}>"
+    message["From"] = f"HemoFlow <{EMAIL_FROM}>"
     message["To"] = SUPPORT_EMAIL
     message["Reply-To"] = email
     message.set_content(
@@ -394,8 +440,7 @@ def send_support_email(protocol: str, category: str, subject: str, text: str, na
         f"{text}\n\n"
         "Para responder, use o botão Responder: a resposta vai para o e-mail de quem enviou."
     )
-    with smtp_connection() as server:
-        server.send_message(message)
+    deliver_email(message)
 
 
 
@@ -814,7 +859,7 @@ class Handler(BaseHTTPRequestHandler):
         generic = {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá instruções para recuperar a senha."}
         if not valid_email(email):
             raise ApiError("Informe um e-mail válido.")
-        if not EMAIL_USER or not EMAIL_PASSWORD:
+        if not email_configured():
             raise ApiError("O envio de e-mail ainda não está configurado no servidor.", 503)
         ip, now = self.client_ip(), time.time()
         recent = [stamp for stamp in RESET_REQUESTS.get(ip, []) if now - stamp < LOGIN_WINDOW]
@@ -1643,7 +1688,7 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Escreva um assunto (de 3 a 120 caracteres).")
         if not 10 <= len(text) <= 3000:
             raise ApiError("Escreva a mensagem (de 10 a 3000 caracteres).")
-        if not EMAIL_USER or not EMAIL_PASSWORD or not SUPPORT_EMAIL:
+        if not email_configured() or not SUPPORT_EMAIL:
             raise ApiError("O envio de mensagens ainda não foi configurado. Avise o administrador.", 503)
         # Limite por usuário: evita que o sistema seja usado para disparar e-mails em massa.
         now = time.time()
@@ -1975,6 +2020,7 @@ def main():
     print(f"HemoFlow ({'produção' if PRODUCTION else 'desenvolvimento'}) escutando em http://{HOST}:{PORT}")
     print(f"MySQL: {DB_HOST}:{DB_PORT}/{DB_NAME} (usuário {DB_USER}, TLS: {DB_SSL})")
     print(f"Fuso: {TIMEZONE if TZ else 'relógio local'} · hoje = {hoje().isoformat()}")
+    print("E-mail:", "Brevo (HTTPS)" if BREVO_API_KEY else ("Gmail (SMTP)" if EMAIL_USER else "não configurado"))
     print(f"Arquivos servidos de: {BASE_DIR / 'static'}")
     if PRODUCTION:
         if not PUBLIC_URL.startswith("https://"):

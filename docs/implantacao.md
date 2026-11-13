@@ -33,7 +33,9 @@ Navegador ──HTTPS──► Proxy do Railway (certificado automático)
 | `HEMOFLOW_TRUST_PROXY` | `1` (IP real do usuário para o limite de tentativas de login) |
 | `HEMOFLOW_AUTO_INSTALL` | `1` (cria as tabelas se o banco estiver vazio) |
 | `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD` | conta Gmail e **senha de app** de 16 letras, para a recuperação de senha e a aba Suporte |
-| `HEMOFLOW_SUPPORT_EMAIL` | (opcional) caixa que recebe as mensagens da aba Suporte; sem ela, vão para `HEMOFLOW_EMAIL_USER` |
+| `HEMOFLOW_BREVO_API_KEY` | chave da API do Brevo. **Obrigatória na nuvem**: o Railway (plano de teste) bloqueia as portas de e-mail (SMTP), então o envio é feito pelo Brevo, por HTTPS |
+| `HEMOFLOW_EMAIL_FROM` | remetente dos e-mails (precisa estar verificado no Brevo); sem ela, usa `HEMOFLOW_EMAIL_USER` |
+| `HEMOFLOW_SUPPORT_EMAIL` | (opcional) caixa que recebe as mensagens da aba Suporte; sem ela, vão para o remetente |
 
 No painel (*Settings*) também estão configurados: verificação de saúde em `/healthz` e porta de destino `8080`.
 

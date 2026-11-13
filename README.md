@@ -82,7 +82,7 @@ Para criar o banco do zero use `scripts/instalar_banco_nuvem.py` (funciona tamb�
 python -m unittest discover -s tests -v
 ```
 
-São 70 testes automatizados (cadastros, CPF, suporte, segurança, notificações e recuperação de senha). Os resultados dos testes manuais estão em [docs/relatorio-testes.md](docs/relatorio-testes.md).
+São 75 testes automatizados (cadastros, CPF, suporte, envio de e-mail, segurança, notificações e recuperação de senha). Os resultados dos testes manuais estão em [docs/relatorio-testes.md](docs/relatorio-testes.md).
 
 ## Perfis de acesso
 

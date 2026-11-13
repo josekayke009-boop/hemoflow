@@ -7,7 +7,7 @@ flowchart LR
     U[Navegador ou aplicativo instalado] -- HTTPS --> P[Proxy da hospedagem]
     P --> S[servidor.py<br/>API + telas]
     S -- conexões reaproveitadas, TLS --> B[(MySQL 8)]
-    S -- SMTP --> G[Gmail<br/>recuperação de senha]
+    S -- HTTPS --> G[Brevo na nuvem / Gmail no computador<br/>recuperação de senha e suporte]
 ```
 
 O sistema é uma **página única** (`static/index.html`). O `js/app.js` monta cada tela dentro dessa página e busca os dados no servidor pela API (`/api/...`), sempre em JSON. O `servidor.py` entrega as telas, valida tudo de novo, aplica as permissões e grava no MySQL.
