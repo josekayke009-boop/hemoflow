@@ -1672,6 +1672,7 @@ class Handler(BaseHTTPRequestHandler):
             ".js": "application/javascript; charset=utf-8",
             ".png": "image/png",
             ".webmanifest": "application/manifest+json",
+            ".webp": "image/webp",
             ".json": "application/json",
             ".svg": "image/svg+xml",
             ".ico": "image/x-icon",

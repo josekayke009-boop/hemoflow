@@ -138,6 +138,8 @@ class HeadersAndHealthTests(ServerTestCase):
         self.assertIn('url.pathname.startsWith("/api/")', body.decode())   # API nunca vai para o cache
         status, _, body = self.request("/")
         self.assertIn(b'rel="manifest"', body)
+        status, headers, _ = self.request("/login/h-simbolo-3d.webp")
+        self.assertEqual((status, headers["Content-Type"]), (200, "image/webp"))
 
     def test_healthz_ok_e_banco_fora(self):
         status, _, body = self.request("/healthz")

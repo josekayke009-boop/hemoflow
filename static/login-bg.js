@@ -22,9 +22,9 @@
 
   // Cada camada de profundidade: tamanho, velocidade, opacidade, desfoque e quanto se move com o parallax.
   const LAYERS = [
-    {size: [10, 18], speed: 0.10, alpha: 0.28, blur: 4, parallax: 8},
-    {size: [18, 30], speed: 0.18, alpha: 0.48, blur: 1.5, parallax: 18},
-    {size: [32, 52], speed: 0.30, alpha: 0.78, blur: 0, parallax: 36},
+    {size: [10, 18], speed: 0.10, alpha: 0.35, blur: 5, parallax: 8},
+    {size: [20, 32], speed: 0.18, alpha: 0.6, blur: 2, parallax: 18},
+    {size: [36, 58], speed: 0.30, alpha: 0.92, blur: 0, parallax: 36},
   ];
 
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -40,7 +40,9 @@
       vy: -rand(0.6, 1.1) * layer.speed,
       angle: rand(0, Math.PI * 2),
       spin: rand(-0.004, 0.004),
-      squash: rand(0.55, 0.95),          // disco visto de lado (achatado) ou de frente
+      flip: rand(0, Math.PI * 2),         // giro no espaço: de frente (disco) até de lado (achatada)
+      flipSpeed: rand(0.002, 0.008),
+      squash: 1,
       wobble: rand(0, Math.PI * 2),
     };
   }
@@ -73,20 +75,32 @@
     g.scale(dpr, dpr);
     g.translate(r + pad, r + pad);
     if (layer.blur) g.filter = `blur(${layer.blur}px)`;
-    const body = g.createRadialGradient(0, 0, r * 0.15, 0, 0, r);
-    body.addColorStop(0, "#ff6b78");
-    body.addColorStop(0.45, "#d8152b");
-    body.addColorStop(0.82, "#a10c1f");
-    body.addColorStop(1, "#6d0613");
+    // Corpo: borda escura, anel vermelho vivo, centro mais claro.
+    const body = g.createRadialGradient(0, 0, 0, 0, 0, r);
+    body.addColorStop(0, "#c94a55");
+    body.addColorStop(0.32, "#b52434");
+    body.addColorStop(0.58, "#d3283a");
+    body.addColorStop(0.78, "#b3142a");
+    body.addColorStop(0.93, "#7c0716");
+    body.addColorStop(1, "rgba(80, 3, 12, 0.85)");
     g.fillStyle = body;
     g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
-    const dimple = g.createRadialGradient(0, 0, 0, 0, 0, r * 0.55);
-    dimple.addColorStop(0, "rgba(120, 0, 14, 0.55)");
-    dimple.addColorStop(1, "rgba(120, 0, 14, 0)");
-    g.fillStyle = dimple;
-    g.beginPath(); g.arc(0, 0, r * 0.55, 0, Math.PI * 2); g.fill();
-    const shine = g.createRadialGradient(-r * 0.35, -r * 0.45, 0, -r * 0.35, -r * 0.45, r * 0.6);
-    shine.addColorStop(0, "rgba(255, 255, 255, 0.35)");
+    // Volume: luz vindo de cima à esquerda, sombra embaixo à direita.
+    const light = g.createLinearGradient(-r, -r, r, r);
+    light.addColorStop(0, "rgba(255, 170, 175, 0.28)");
+    light.addColorStop(0.5, "rgba(255, 170, 175, 0)");
+    light.addColorStop(1, "rgba(40, 0, 6, 0.38)");
+    g.fillStyle = light;
+    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+    // Centro afundado: sombra fina na borda de cima da "covinha" e reflexo na de baixo.
+    g.lineWidth = Math.max(1, r * 0.09);
+    g.strokeStyle = "rgba(90, 0, 12, 0.45)";
+    g.beginPath(); g.arc(0, 0, r * 0.42, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+    g.strokeStyle = "rgba(255, 190, 195, 0.35)";
+    g.beginPath(); g.arc(0, 0, r * 0.42, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
+    // Brilho úmido no anel superior.
+    const shine = g.createRadialGradient(-r * 0.42, -r * 0.5, 0, -r * 0.42, -r * 0.5, r * 0.45);
+    shine.addColorStop(0, "rgba(255, 255, 255, 0.42)");
     shine.addColorStop(1, "rgba(255, 255, 255, 0)");
     g.fillStyle = shine;
     g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
@@ -122,6 +136,8 @@
       c.x += (c.vx + Math.sin(c.wobble) * 0.15) * dt;
       c.y += c.vy * dt;
       c.angle += c.spin * dt;
+      c.flip += c.flipSpeed * dt;
+      c.squash = 0.22 + 0.78 * Math.abs(Math.cos(c.flip));
       if (c.y < -c.r * 2 || c.x < -c.r * 3 || c.x > width + c.r * 3) Object.assign(c, makeCell(c.layer, false), {sprite: null});
     }
     draw();
