@@ -1,225 +1,524 @@
 <!doctype html>
+<!--
+  HemoFlow — página única do sistema.
+  As telas são montadas pelo js/app.js; os estilos ficam em css/estilos.css.
+-->
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#8b0a1a">
-  <meta name="description" content="HemoFlow — gestão de doadores, bolsas de sangue e estoque do hemocentro.">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="HemoFlow">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>HemoFlow — Gestão de hemocomponentes</title>
-  <link rel="icon" type="image/png" href="/hemoflow-icon.png">
-  <link rel="stylesheet" href="/styles.css">
-</head>
-<body class="auth-required">
-  <!-- Fundo animado da tela de login: glóbulos vermelhos em profundidade + logo em 3D -->
-  <div class="login-bg" aria-hidden="true">
-    <canvas id="login-cells"></canvas>
-    <div class="login-hero" id="login-hero">
-      <div class="login-hero-glow"></div>
-      <div class="login-hero-3d">
-        <img class="login-hero-symbol" src="/login/h-simbolo-3d.webp" width="757" height="855" alt="">
-        <svg class="login-hero-blood" viewBox="0 0 757 855" aria-hidden="true" focusable="false">
-      <defs>
-        <linearGradient id="hf-blood" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#ff4a5a"/><stop offset=".45" stop-color="#d0122b"/><stop offset="1" stop-color="#7a0616"/>
-        </linearGradient>
-        <radialGradient id="hf-bead">
-          <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".25" stop-color="#ff5a69"/>
-          <stop offset=".6" stop-color="#d0122b" stop-opacity=".9"/><stop offset="1" stop-color="#d0122b" stop-opacity="0"/>
-        </radialGradient>
-        <linearGradient id="hf-shine" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".55"/>
-          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-        </linearGradient>
-        <mask id="hf-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="757" height="855">
-          <image href="/login/h-mascara.webp" width="757" height="855"/>
-        </mask>
-      </defs>
-      <g mask="url(#hf-mask)">
-        <path d="M120 840 L120 105" pathLength="1" fill="none" stroke="url(#hf-blood)" stroke-width="210" stroke-linecap="round"
-              stroke-dasharray="1 1" stroke-dashoffset="1">
-          <animate attributeName="stroke-dashoffset" dur="10s" repeatCount="indefinite" calcMode="spline"
-                   values="1;1;0;0" keyTimes="0;0.02;0.14;1" keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="1;1;0;0" keyTimes="0;0.74;0.86;1"/>
-        </path>
-        <path d="M380 26 C305 120 228 235 238 335 C248 430 345 468 465 480 C545 488 600 520 640 580 C680 640 700 720 702 810" pathLength="1" fill="none" stroke="url(#hf-blood)" stroke-width="150" stroke-linecap="round"
-              stroke-dasharray="1 1" stroke-dashoffset="1">
-          <animate attributeName="stroke-dashoffset" dur="10s" repeatCount="indefinite" calcMode="spline"
-                   values="1;1;0;0" keyTimes="0;0.14;0.38;1" keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="1;1;0;0" keyTimes="0;0.74;0.86;1"/>
-        </path>
-        <path d="M640 105 L640 840" pathLength="1" fill="none" stroke="url(#hf-blood)" stroke-width="210" stroke-linecap="round"
-              stroke-dasharray="1 1" stroke-dashoffset="1">
-          <animate attributeName="stroke-dashoffset" dur="10s" repeatCount="indefinite" calcMode="spline"
-                   values="1;1;0;0" keyTimes="0;0.38;0.5;1" keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="1;1;0;0" keyTimes="0;0.74;0.86;1"/>
-        </path>
-        <rect width="757" height="855" fill="url(#hf-blood)" opacity="0">
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="0;0;1;1;0;0" keyTimes="0;0.47;0.55;0.74;0.86;1"/>
-        </rect>
-        <rect x="-260" y="0" width="220" height="855" fill="url(#hf-shine)" transform="skewX(-18)" opacity="0">
-          <animate attributeName="x" dur="10s" repeatCount="indefinite"
-                   values="-260;-260;980;980" keyTimes="0;0.55;0.74;1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="0;0;1;1;0;0" keyTimes="0;0.55;0.56;0.73;0.74;1"/>
-        </rect>
-        <circle r="34" fill="url(#hf-bead)" opacity="0">
-          <animateMotion dur="10s" repeatCount="indefinite" path="M120 840 L120 105" calcMode="spline"
-                         keyPoints="0;0;1;1" keyTimes="0;0.02;0.14;1" keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="0;0;1;1;0;0" keyTimes="0;0.02;0.03;0.13;0.14;1"/>
-        </circle>
-        <circle r="34" fill="url(#hf-bead)" opacity="0">
-          <animateMotion dur="10s" repeatCount="indefinite" path="M380 26 C305 120 228 235 238 335 C248 430 345 468 465 480 C545 488 600 520 640 580 C680 640 700 720 702 810" calcMode="spline"
-                         keyPoints="0;0;1;1" keyTimes="0;0.14;0.38;1" keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="0;0;1;1;0;0" keyTimes="0;0.14;0.15;0.37;0.38;1"/>
-        </circle>
-        <circle r="34" fill="url(#hf-bead)" opacity="0">
-          <animateMotion dur="10s" repeatCount="indefinite" path="M640 105 L640 840" calcMode="spline"
-                         keyPoints="0;0;1;1" keyTimes="0;0.38;0.5;1" keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"/>
-          <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
-                   values="0;0;1;1;0;0" keyTimes="0;0.38;0.39;0.49;0.5;1"/>
-        </circle>
-      </g>
-    </svg>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#8b0a1a" />
+    <meta
+      name="description"
+      content="HemoFlow — gestão de doadores, bolsas de sangue e estoque do hemocentro."
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="HemoFlow" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>HemoFlow — Gestão de hemocomponentes</title>
+    <link rel="icon" type="image/png" href="/img/hemoflow-icone.png" />
+    <link rel="stylesheet" href="/css/estilos.css" />
+  </head>
+  <body class="auth-required">
+    <!-- Fundo animado da tela de login: glóbulos vermelhos em profundidade + logo em 3D -->
+    <div class="login-bg" aria-hidden="true">
+      <canvas id="login-cells"></canvas>
+      <div class="login-hero" id="login-hero">
+        <div class="login-hero-glow"></div>
+        <div class="login-hero-3d">
+          <img class="login-hero-symbol" src="/img/login/h-simbolo-3d.webp" width="757" height="855" alt="" />
+          <svg class="login-hero-blood" viewBox="0 0 757 855" aria-hidden="true" focusable="false">
+            <defs>
+              <linearGradient id="hf-blood" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#ff4a5a" />
+                <stop offset=".45" stop-color="#d0122b" />
+                <stop offset="1" stop-color="#7a0616" />
+              </linearGradient>
+              <radialGradient id="hf-bead">
+                <stop offset="0" stop-color="#fff" stop-opacity=".95" />
+                <stop offset=".25" stop-color="#ff5a69" />
+                <stop offset=".6" stop-color="#d0122b" stop-opacity=".9" />
+                <stop offset="1" stop-color="#d0122b" stop-opacity="0" />
+              </radialGradient>
+              <linearGradient id="hf-shine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                <stop offset=".5" stop-color="#fff" stop-opacity=".55" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0" />
+              </linearGradient>
+              <mask id="hf-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="757" height="855">
+                <image href="/img/login/h-mascara.webp" width="757" height="855" />
+              </mask>
+            </defs>
+            <g mask="url(#hf-mask)">
+              <path
+                d="M120 840 L120 105"
+                pathLength="1"
+                fill="none"
+                stroke="url(#hf-blood)"
+                stroke-width="210"
+                stroke-linecap="round"
+                stroke-dasharray="1 1"
+                stroke-dashoffset="1"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  values="1;1;0;0"
+                  keyTimes="0;0.02;0.14;1"
+                  keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="1;1;0;0"
+                  keyTimes="0;0.74;0.86;1"
+                />
+              </path>
+              <path
+                d="M380 26 C305 120 228 235 238 335 C248 430 345 468 465 480 C545 488 600 520 640 580 C680 640 700 720 702 810"
+                pathLength="1"
+                fill="none"
+                stroke="url(#hf-blood)"
+                stroke-width="150"
+                stroke-linecap="round"
+                stroke-dasharray="1 1"
+                stroke-dashoffset="1"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  values="1;1;0;0"
+                  keyTimes="0;0.14;0.38;1"
+                  keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="1;1;0;0"
+                  keyTimes="0;0.74;0.86;1"
+                />
+              </path>
+              <path
+                d="M640 105 L640 840"
+                pathLength="1"
+                fill="none"
+                stroke="url(#hf-blood)"
+                stroke-width="210"
+                stroke-linecap="round"
+                stroke-dasharray="1 1"
+                stroke-dashoffset="1"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  values="1;1;0;0"
+                  keyTimes="0;0.38;0.5;1"
+                  keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="1;1;0;0"
+                  keyTimes="0;0.74;0.86;1"
+                />
+              </path>
+              <rect width="757" height="855" fill="url(#hf-blood)" opacity="0">
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="0;0;1;1;0;0"
+                  keyTimes="0;0.47;0.55;0.74;0.86;1"
+                />
+              </rect>
+              <rect
+                x="-260"
+                y="0"
+                width="220"
+                height="855"
+                fill="url(#hf-shine)"
+                transform="skewX(-18)"
+                opacity="0"
+              >
+                <animate
+                  attributeName="x"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="-260;-260;980;980"
+                  keyTimes="0;0.55;0.74;1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="0;0;1;1;0;0"
+                  keyTimes="0;0.55;0.56;0.73;0.74;1"
+                />
+              </rect>
+              <circle r="34" fill="url(#hf-bead)" opacity="0">
+                <animateMotion
+                  dur="10s"
+                  repeatCount="indefinite"
+                  path="M120 840 L120 105"
+                  calcMode="spline"
+                  keyPoints="0;0;1;1"
+                  keyTimes="0;0.02;0.14;1"
+                  keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="0;0;1;1;0;0"
+                  keyTimes="0;0.02;0.03;0.13;0.14;1"
+                />
+              </circle>
+              <circle r="34" fill="url(#hf-bead)" opacity="0">
+                <animateMotion
+                  dur="10s"
+                  repeatCount="indefinite"
+                  path="M380 26 C305 120 228 235 238 335 C248 430 345 468 465 480 C545 488 600 520 640 580 C680 640 700 720 702 810"
+                  calcMode="spline"
+                  keyPoints="0;0;1;1"
+                  keyTimes="0;0.14;0.38;1"
+                  keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="0;0;1;1;0;0"
+                  keyTimes="0;0.14;0.15;0.37;0.38;1"
+                />
+              </circle>
+              <circle r="34" fill="url(#hf-bead)" opacity="0">
+                <animateMotion
+                  dur="10s"
+                  repeatCount="indefinite"
+                  path="M640 105 L640 840"
+                  calcMode="spline"
+                  keyPoints="0;0;1;1"
+                  keyTimes="0;0.38;0.5;1"
+                  keySplines="0 0 1 1;.45 0 .55 1;0 0 1 1"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="10s"
+                  repeatCount="indefinite"
+                  values="0;0;1;1;0;0"
+                  keyTimes="0;0.38;0.39;0.49;0.5;1"
+                />
+              </circle>
+            </g>
+          </svg>
+        </div>
+        <div class="login-hero-text">
+          <strong>HemoFlow</strong><span>Gestão inteligente de hemocentro</span>
+        </div>
       </div>
-      <div class="login-hero-text"><strong>HemoFlow</strong><span>Gestão inteligente de hemocentro</span></div>
     </div>
-  </div>
-  <section id="login-screen" class="login-screen">
-    <form id="login-form" class="login-card">
-      <div class="login-brand"><img class="brand-logo" src="/hemoflow-icon.png" alt="Logo HemoFlow"><div><strong>HemoFlow</strong><small>Gestão de hemocentro</small></div></div>
-      <p class="eyebrow">ACESSO AO SISTEMA</p>
-      <h1>Bem-vindo de volta</h1>
-      <p class="muted">Entre com sua conta para acessar o painel.</p>
-      <label>E-mail
-        <input id="login-email" name="email" type="email" autocomplete="username" placeholder="nome@exemplo.com" required>
-      </label>
-      <label>Senha
-        <input id="login-password" name="senha" type="password" autocomplete="current-password" placeholder="Digite sua senha" required>
-      </label>
-      <div id="login-error" class="form-error hidden" role="alert"></div>
-      <button id="login-submit" class="btn btn-primary full" type="submit">Entrar no sistema</button>
-     <div class="login-footer">
-  <a href="#" id="forgot-password">Esqueceu sua senha?</a>
-  <p>HemoFlow · Gestão segura de hemocentro</p>
-</div>
-    </form>
-  </section>
-  <section id="recovery-screen" class="login-screen" style="display:none">
-    <form id="recovery-form" class="login-card">
-      <div class="login-brand"><img class="brand-logo" src="/hemoflow-icon.png" alt="Logo HemoFlow"><div><strong>HemoFlow</strong><small>Recuperação de senha</small></div></div>
-      <p class="eyebrow">RECUPERAR ACESSO</p>
-      <h1 id="recovery-title">Esqueceu sua senha?</h1>
-      <p id="recovery-description" class="muted">Informe seu e-mail cadastrado para receber um link de recuperação.</p>
-      <label id="recovery-email-label">E-mail
-        <input id="recovery-email" type="email" autocomplete="email" placeholder="nome@exemplo.com" required>
-      </label>
-      <label id="recovery-password-label" class="hidden">Nova senha
-        <input id="recovery-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Mínimo de 10 caracteres, com letras e números">
-      </label>
-      <label id="recovery-confirm-label" class="hidden">Confirmar nova senha
-        <input id="recovery-confirm" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Digite a nova senha de novo">
-      </label>
-      <div id="recovery-error" class="form-error hidden" role="alert"></div>
-      <div id="recovery-success" class="form-success hidden" role="status"></div>
-      <button id="recovery-submit" class="btn btn-primary full" type="submit">Enviar link de recuperação</button>
-      <div class="login-footer"><a href="#" id="back-to-login">Voltar para o login</a><p>HemoFlow · Gestão segura de hemocentro</p></div>
-    </form>
-  </section>
+    <!-- TELA DE LOGIN (e-mail, senha e link "Esqueceu sua senha?") -->
+    <section id="login-screen" class="login-screen">
+      <form id="login-form" class="login-card">
+        <div class="login-brand">
+          <img class="brand-logo" src="/img/hemoflow-icone.png" alt="Logo HemoFlow" />
+          <div><strong>HemoFlow</strong><small>Gestão de hemocentro</small></div>
+        </div>
+        <p class="eyebrow">ACESSO AO SISTEMA</p>
+        <h1>Bem-vindo de volta</h1>
+        <p class="muted">Entre com sua conta para acessar o painel.</p>
+        <label
+          >E-mail
+          <input
+            id="login-email"
+            name="email"
+            type="email"
+            autocomplete="username"
+            placeholder="nome@exemplo.com"
+            required
+          />
+        </label>
+        <label
+          >Senha
+          <input
+            id="login-password"
+            name="senha"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Digite sua senha"
+            required
+          />
+        </label>
+        <div id="login-error" class="form-error hidden" role="alert"></div>
+        <button id="login-submit" class="btn btn-primary full" type="submit">Entrar no sistema</button>
+        <div class="login-footer">
+          <a href="#" id="forgot-password">Esqueceu sua senha?</a>
+          <p>HemoFlow · Gestão segura de hemocentro</p>
+        </div>
+      </form>
+    </section>
+    <!-- TELA DE RECUPERAÇÃO DE SENHA (pedir o link / criar a nova senha) -->
+    <section id="recovery-screen" class="login-screen" style="display: none">
+      <form id="recovery-form" class="login-card">
+        <div class="login-brand">
+          <img class="brand-logo" src="/img/hemoflow-icone.png" alt="Logo HemoFlow" />
+          <div><strong>HemoFlow</strong><small>Recuperação de senha</small></div>
+        </div>
+        <p class="eyebrow">RECUPERAR ACESSO</p>
+        <h1 id="recovery-title">Esqueceu sua senha?</h1>
+        <p id="recovery-description" class="muted">
+          Informe seu e-mail cadastrado para receber um link de recuperação.
+        </p>
+        <label id="recovery-email-label"
+          >E-mail
+          <input
+            id="recovery-email"
+            type="email"
+            autocomplete="email"
+            placeholder="nome@exemplo.com"
+            required
+          />
+        </label>
+        <label id="recovery-password-label" class="hidden"
+          >Nova senha
+          <input
+            id="recovery-password"
+            type="password"
+            autocomplete="new-password"
+            minlength="10"
+            maxlength="128"
+            placeholder="Mínimo de 10 caracteres, com letras e números"
+          />
+        </label>
+        <label id="recovery-confirm-label" class="hidden"
+          >Confirmar nova senha
+          <input
+            id="recovery-confirm"
+            type="password"
+            autocomplete="new-password"
+            minlength="10"
+            maxlength="128"
+            placeholder="Digite a nova senha de novo"
+          />
+        </label>
+        <div id="recovery-error" class="form-error hidden" role="alert"></div>
+        <div id="recovery-success" class="form-success hidden" role="status"></div>
+        <button id="recovery-submit" class="btn btn-primary full" type="submit">
+          Enviar link de recuperação
+        </button>
+        <div class="login-footer">
+          <a href="#" id="back-to-login">Voltar para o login</a>
+          <p>HemoFlow · Gestão segura de hemocentro</p>
+        </div>
+      </form>
+    </section>
 
-  <aside class="sidebar">
-    <a class="brand" href="#overview" aria-label="HemoFlow início">
-      <span class="brand-mark brand-mark-logo"><img src="/hemoflow-icon.png" alt=""></span>
-      <span><b>HemoFlow</b><small>Gestão de hemocentro</small></span>
-    </a>
-    <div class="side-label">MENU PRINCIPAL</div>
-    <nav id="main-nav">
-      <a class="nav active" href="#registrations" data-page="registrations"><span class="nav-icon">♙</span>Cadastros</a>
-      <a class="nav" href="#overview" data-page="overview"><span class="nav-icon">▦</span>Visão geral</a>
-      <a class="nav" href="#stock" data-page="stock"><span class="nav-icon">♢</span>Estoque de sangue</a>
-      <a class="nav" href="#donors" data-page="donors"><span class="nav-icon">♧</span>Doadores</a>
-      <a class="nav" href="#movements" data-page="movements"><span class="nav-icon">⌁</span>Movimentações</a>
-      <a class="nav" href="#bags" data-page="bags"><span class="nav-icon">▤</span>Registro de bolsas</a>
-      <a class="nav" href="#alerts" data-page="alerts"><span class="nav-icon">⚠</span>Quadro de atenção</a>
-      <a class="nav" href="#reports" data-page="reports"><span class="nav-icon">▤</span>Relatórios</a>
-      <a class="nav hidden" id="admin-accounts-nav" href="#accessAccounts" data-page="accessAccounts"><span class="nav-icon">♙</span>Contas de acesso</a>
-    </nav>
-    <div class="sidebar-bottom">
-      <a class="nav" href="#settings" data-page="settings"><span class="nav-icon">⚙</span>Configurações</a>
-      <div class="sidebar-note"><span class="pulse"></span><div><b>Sistema operacional</b><small>Banco de dados conectado</small></div></div>
-      <div class="side-footer">HEMOFLOW</div>
-    </div>
-  </aside>
+    <!-- MENU LATERAL (no celular vira a barra inferior). Cada item abre uma tela pelo data-page. -->
+    <aside class="sidebar">
+      <a class="brand" href="#overview" aria-label="HemoFlow início">
+        <span class="brand-mark brand-mark-logo"><img src="/img/hemoflow-icone.png" alt="" /></span>
+        <span><b>HemoFlow</b><small>Gestão de hemocentro</small></span>
+      </a>
+      <div class="side-label">MENU PRINCIPAL</div>
+      <nav id="main-nav">
+        <a class="nav active" href="#registrations" data-page="registrations"
+          ><span class="nav-icon">♙</span>Cadastros</a
+        >
+        <a class="nav" href="#overview" data-page="overview"><span class="nav-icon">▦</span>Visão geral</a>
+        <a class="nav" href="#stock" data-page="stock"><span class="nav-icon">♢</span>Estoque de sangue</a>
+        <a class="nav" href="#donors" data-page="donors"><span class="nav-icon">♧</span>Doadores</a>
+        <a class="nav" href="#movements" data-page="movements"
+          ><span class="nav-icon">⌁</span>Movimentações</a
+        >
+        <a class="nav" href="#bags" data-page="bags"><span class="nav-icon">▤</span>Registro de bolsas</a>
+        <a class="nav" href="#alerts" data-page="alerts"><span class="nav-icon">⚠</span>Quadro de atenção</a>
+        <a class="nav" href="#reports" data-page="reports"><span class="nav-icon">▤</span>Relatórios</a>
+        <a class="nav hidden" id="admin-accounts-nav" href="#accessAccounts" data-page="accessAccounts"
+          ><span class="nav-icon">♙</span>Contas de acesso</a
+        >
+      </nav>
+      <div class="sidebar-bottom">
+        <a class="nav" href="#settings" data-page="settings"><span class="nav-icon">⚙</span>Configurações</a>
+        <div class="sidebar-note">
+          <span class="pulse"></span>
+          <div><b>Sistema operacional</b><small>Banco de dados conectado</small></div>
+        </div>
+        <div class="side-footer">HEMOFLOW</div>
+      </div>
+    </aside>
 
-  <main class="main">
-    <header class="topbar">
-      <div class="mobile-brand"><span class="brand-mark brand-mark-logo"><img src="/hemoflow-icon.png" alt=""></span> HemoFlow</div>
-      <div class="topbar-title"><strong id="top-title">Cadastros</strong><small id="top-subtitle">Profissionais licenciados e doadores</small></div>
-      <div class="topbar-actions">
-        <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="Buscar..."></label>
-        <div class="notif-wrap"><button class="icon-button" id="notifications-button" aria-label="Notificações" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><i id="notif-count" class="hidden">0</i></button><div id="notif-panel" class="notif-panel hidden" role="dialog" aria-label="Notificações"></div></div>
-        <button class="btn btn-primary" id="new-movement"><span>＋</span> Nova movimentação</button>
-        <div class="user-chip"><span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span><button id="logout-button" class="logout-button" type="button">Sair</button></div>
+    <!-- ÁREA PRINCIPAL -->
+    <main class="main">
+      <!-- Topo: título da tela, busca, sino de notificações, "Nova movimentação" e "Sair" -->
+      <header class="topbar">
+        <div class="mobile-brand">
+          <span class="brand-mark brand-mark-logo"><img src="/img/hemoflow-icone.png" alt="" /></span>
+          HemoFlow
+        </div>
+        <div class="topbar-title">
+          <strong id="top-title">Cadastros</strong
+          ><small id="top-subtitle">Profissionais licenciados e doadores</small>
+        </div>
+        <div class="topbar-actions">
+          <label class="global-search"
+            ><span>⌕</span><input id="global-search" type="search" placeholder="Buscar..."
+          /></label>
+          <div class="notif-wrap">
+            <button
+              class="icon-button"
+              id="notifications-button"
+              aria-label="Notificações"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg
+              ><i id="notif-count" class="hidden">0</i>
+            </button>
+            <div id="notif-panel" class="notif-panel hidden" role="dialog" aria-label="Notificações"></div>
+          </div>
+          <button class="btn btn-primary" id="new-movement"><span>＋</span> Nova movimentação</button>
+          <div class="user-chip">
+            <span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span
+            ><button id="logout-button" class="logout-button" type="button">Sair</button>
+          </div>
+        </div>
+      </header>
+      <!-- Aviso de "Sem conexão" e avisos rápidos (toast) -->
+      <div id="offline-banner" class="offline-banner hidden" role="status" aria-live="polite"></div>
+      <div id="toast" class="toast hidden" role="status" aria-live="polite">
+        <span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span>
       </div>
-    </header>
-    <div id="offline-banner" class="offline-banner hidden" role="status" aria-live="polite"></div>
-    <div id="toast" class="toast hidden" role="status" aria-live="polite"><span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span></div>
-    <section id="page-content" class="page-content"></section>
-  </main>
+      <!-- Conteúdo da tela atual: preenchido pelo js/app.js (função renderPage) -->
+      <section id="page-content" class="page-content"></section>
+    </main>
 
-  <dialog id="bag-dialog" class="modal">
-    <form id="bag-form" method="dialog">
-      <div class="modal-heading"><div><p class="eyebrow">ESTOQUE DE SANGUE</p><h2>Registrar bolsa</h2><p class="muted">Preencha os dados da nova bolsa.</p></div><button type="button" class="close-button" id="close-modal" aria-label="Fechar">×</button></div>
-      <div class="form-grid">
-        <label>Código da bolsa <small>Gerado automaticamente</small><input value="Gerado ao salvar" disabled></label>
-        <label>Tipo sanguíneo *<select id="bag-blood" required><option value="">Selecione</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select></label>
-        <label>Volume (ml) *<input id="bag-volume" type="number" min="1" max="1000" value="450" required></label>
-        <label>Localização *<input id="bag-location" placeholder="Ex.: Refrigerador A" required></label>
-        <label>Data de coleta *<input id="bag-collected" type="date" required></label>
-        <label>Data de validade *<input id="bag-expiry" type="date" required></label>
-        <label>Status inicial *<select id="bag-status"><option value="DISPONIVEL">Disponível</option><option value="QUARENTENA">Quarentena</option></select></label>
-        <label class="span-2">Observações<textarea id="bag-notes" rows="3" placeholder="Observações opcionais"></textarea></label>
-      </div>
-      <div id="bag-error" class="form-error hidden" role="alert"></div>
-      <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-modal">Cancelar</button><button class="btn btn-primary" id="save-bag" type="submit">Salvar bolsa</button></div>
-    </form>
-  </dialog>
+    <!-- JANELA "REGISTRAR BOLSA" -->
+    <dialog id="bag-dialog" class="modal">
+      <form id="bag-form" method="dialog">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">ESTOQUE DE SANGUE</p>
+            <h2>Registrar bolsa</h2>
+            <p class="muted">Preencha os dados da nova bolsa.</p>
+          </div>
+          <button type="button" class="close-button" id="close-modal" aria-label="Fechar">×</button>
+        </div>
+        <div class="form-grid">
+          <label
+            >Código da bolsa <small>Gerado automaticamente</small><input value="Gerado ao salvar" disabled
+          /></label>
+          <label
+            >Tipo sanguíneo *<select id="bag-blood" required>
+              <option value="">Selecione</option>
+              <option>A+</option>
+              <option>A-</option>
+              <option>B+</option>
+              <option>B-</option>
+              <option>AB+</option>
+              <option>AB-</option>
+              <option>O+</option>
+              <option>O-</option>
+            </select></label
+          >
+          <label
+            >Volume (ml) *<input id="bag-volume" type="number" min="1" max="1000" value="450" required
+          /></label>
+          <label>Localização *<input id="bag-location" placeholder="Ex.: Refrigerador A" required /></label>
+          <label>Data de coleta *<input id="bag-collected" type="date" required /></label>
+          <label>Data de validade *<input id="bag-expiry" type="date" required /></label>
+          <label
+            >Status inicial *<select id="bag-status">
+              <option value="DISPONIVEL">Disponível</option>
+              <option value="QUARENTENA">Quarentena</option>
+            </select></label
+          >
+          <label class="span-2"
+            >Observações<textarea id="bag-notes" rows="3" placeholder="Observações opcionais"></textarea>
+          </label>
+        </div>
+        <div id="bag-error" class="form-error hidden" role="alert"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-modal">Cancelar</button
+          ><button class="btn btn-primary" id="save-bag" type="submit">Salvar bolsa</button>
+        </div>
+      </form>
+    </dialog>
 
-  <dialog id="transition-dialog" class="modal">
-    <form id="transition-form" method="dialog">
-      <div class="modal-heading"><div><p class="eyebrow">ATUALIZAÇÃO DE ESTOQUE</p><h2>Nova movimentação</h2><p class="muted" id="transition-bag-label">Altere o status da bolsa selecionada.</p></div><button type="button" class="close-button" id="close-transition" aria-label="Fechar">×</button></div>
-      <input id="transition-id" type="hidden">
-      <div class="form-grid">
-        <label>Novo status *<select id="transition-status" required><option value="RESERVADA">Reservada</option><option value="DISPONIVEL">Disponível</option><option value="TRANSFUNDIDA">Transfundida</option><option value="DESCARTADA">Descartada</option><option value="QUARENTENA">Quarentena</option></select></label>
-        <label class="span-2">Observação<textarea id="transition-note" rows="3" placeholder="Motivo da movimentação"></textarea></label>
-      </div>
-      <div id="transition-error" class="form-error hidden" role="alert"></div>
-      <div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancel-transition">Cancelar</button><button class="btn btn-primary" type="submit">Confirmar movimentação</button></div>
-    </form>
-  </dialog>
-  <dialog id="confirm-dialog" class="modal confirm-modal" aria-labelledby="confirm-title">
-    <form method="dialog">
-      <div class="confirm-icon" id="confirm-icon" aria-hidden="true">!</div>
-      <h2 id="confirm-title">Confirmar</h2>
-      <p id="confirm-message" class="muted"></p>
-      <div class="modal-actions">
-        <button value="cancel" class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
-        <button value="ok" class="btn btn-primary" id="confirm-ok">Confirmar</button>
-      </div>
-    </form>
-  </dialog>
-  <script src="/login-bg.js" defer></script>
-  <script src="/app.js" defer></script>
-</body>
+    <!-- JANELA "NOVA MOVIMENTAÇÃO" (mudar a situação de uma bolsa) -->
+    <dialog id="transition-dialog" class="modal">
+      <form id="transition-form" method="dialog">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">ATUALIZAÇÃO DE ESTOQUE</p>
+            <h2>Nova movimentação</h2>
+            <p class="muted" id="transition-bag-label">Altere o status da bolsa selecionada.</p>
+          </div>
+          <button type="button" class="close-button" id="close-transition" aria-label="Fechar">×</button>
+        </div>
+        <input id="transition-id" type="hidden" />
+        <div class="form-grid">
+          <label
+            >Novo status *<select id="transition-status" required>
+              <option value="RESERVADA">Reservada</option>
+              <option value="DISPONIVEL">Disponível</option>
+              <option value="TRANSFUNDIDA">Transfundida</option>
+              <option value="DESCARTADA">Descartada</option>
+              <option value="QUARENTENA">Quarentena</option>
+            </select></label
+          >
+          <label class="span-2"
+            >Observação<textarea
+              id="transition-note"
+              rows="3"
+              placeholder="Motivo da movimentação"
+            ></textarea>
+          </label>
+        </div>
+        <div id="transition-error" class="form-error hidden" role="alert"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-transition">Cancelar</button
+          ><button class="btn btn-primary" type="submit">Confirmar movimentação</button>
+        </div>
+      </form>
+    </dialog>
+    <!-- JANELA DE CONFIRMAÇÃO (ex.: "Excluir doador?") -->
+    <dialog id="confirm-dialog" class="modal confirm-modal" aria-labelledby="confirm-title">
+      <form method="dialog">
+        <div class="confirm-icon" id="confirm-icon" aria-hidden="true">!</div>
+        <h2 id="confirm-title">Confirmar</h2>
+        <p id="confirm-message" class="muted"></p>
+        <div class="modal-actions">
+          <button value="cancel" class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
+          <button value="ok" class="btn btn-primary" id="confirm-ok">Confirmar</button>
+        </div>
+      </form>
+    </dialog>
+    <!-- SCRIPTS: animação do login e lógica das telas -->
+    <script src="/js/fundo-login.js" defer></script>
+    <script src="/js/app.js" defer></script>
+  </body>
 </html>

@@ -16,15 +16,20 @@
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isLoginVisible = () => document.body.classList.contains("auth-required") && !document.hidden;
 
-  let width = 0, height = 0, dpr = 1, cells = [], frame = null, last = 0;
+  let width = 0,
+    height = 0,
+    dpr = 1,
+    cells = [],
+    frame = null,
+    last = 0;
   // Posição do "olhar" (-1 a 1), suavizada para o movimento não ficar brusco.
-  const pointer = {x: 0, y: 0, tx: 0, ty: 0};
+  const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
 
   // Cada camada de profundidade: tamanho, velocidade, opacidade, desfoque e quanto se move com o parallax.
   const LAYERS = [
-    {size: [10, 18], speed: 0.10, alpha: 0.35, blur: 5, parallax: 8},
-    {size: [20, 32], speed: 0.18, alpha: 0.6, blur: 2, parallax: 18},
-    {size: [36, 58], speed: 0.30, alpha: 0.92, blur: 0, parallax: 36},
+    { size: [10, 18], speed: 0.1, alpha: 0.35, blur: 5, parallax: 8 },
+    { size: [20, 32], speed: 0.18, alpha: 0.6, blur: 2, parallax: 18 },
+    { size: [36, 58], speed: 0.3, alpha: 0.92, blur: 0, parallax: 36 },
   ];
 
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -33,14 +38,15 @@
     const layer = LAYERS[layerIndex];
     const r = rand(layer.size[0], layer.size[1]);
     return {
-      layer: layerIndex, r,
+      layer: layerIndex,
+      r,
       x: rand(-r, width + r),
       y: anywhere ? rand(-r, height + r) : height + r + rand(0, 80),
       vx: rand(-0.25, 0.25) * layer.speed * 2,
       vy: -rand(0.6, 1.1) * layer.speed,
       angle: rand(0, Math.PI * 2),
       spin: rand(-0.004, 0.004),
-      flip: rand(0, Math.PI * 2),         // giro no espaço: de frente (disco) até de lado (achatada)
+      flip: rand(0, Math.PI * 2), // giro no espaço: de frente (disco) até de lado (achatada)
       flipSpeed: rand(0.002, 0.008),
       squash: 1,
       wobble: rand(0, Math.PI * 2),
@@ -59,8 +65,10 @@
     const small = width < 700;
     const counts = small ? [7, 6, 4] : [16, 12, 8];
     cells = [];
-    counts.forEach((n, i) => { for (let k = 0; k < n; k++) cells.push(makeCell(i, true)); });
-    cells.sort((a, b) => a.layer - b.layer);   // as de longe desenhadas primeiro
+    counts.forEach((n, i) => {
+      for (let k = 0; k < n; k++) cells.push(makeCell(i, true));
+    });
+    cells.sort((a, b) => a.layer - b.layer); // as de longe desenhadas primeiro
   }
 
   // Glóbulo vermelho: disco com a borda mais escura e o centro mais claro (formato bicôncavo).
@@ -84,27 +92,37 @@
     body.addColorStop(0.93, "#7c0716");
     body.addColorStop(1, "rgba(80, 3, 12, 0.85)");
     g.fillStyle = body;
-    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.fill();
     // Volume: luz vindo de cima à esquerda, sombra embaixo à direita.
     const light = g.createLinearGradient(-r, -r, r, r);
     light.addColorStop(0, "rgba(255, 170, 175, 0.28)");
     light.addColorStop(0.5, "rgba(255, 170, 175, 0)");
     light.addColorStop(1, "rgba(40, 0, 6, 0.38)");
     g.fillStyle = light;
-    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.fill();
     // Centro afundado: sombra fina na borda de cima da "covinha" e reflexo na de baixo.
     g.lineWidth = Math.max(1, r * 0.09);
     g.strokeStyle = "rgba(90, 0, 12, 0.45)";
-    g.beginPath(); g.arc(0, 0, r * 0.42, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+    g.beginPath();
+    g.arc(0, 0, r * 0.42, Math.PI * 1.05, Math.PI * 1.95);
+    g.stroke();
     g.strokeStyle = "rgba(255, 190, 195, 0.35)";
-    g.beginPath(); g.arc(0, 0, r * 0.42, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
+    g.beginPath();
+    g.arc(0, 0, r * 0.42, Math.PI * 0.1, Math.PI * 0.9);
+    g.stroke();
     // Brilho úmido no anel superior.
     const shine = g.createRadialGradient(-r * 0.42, -r * 0.5, 0, -r * 0.42, -r * 0.5, r * 0.45);
     shine.addColorStop(0, "rgba(255, 255, 255, 0.42)");
     shine.addColorStop(1, "rgba(255, 255, 255, 0)");
     g.fillStyle = shine;
-    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
-    return {img: off, half: r + pad};
+    g.beginPath();
+    g.arc(0, 0, r, 0, Math.PI * 2);
+    g.fill();
+    return { img: off, half: r + pad };
   }
 
   function drawCell(c, offsetX, offsetY) {
@@ -126,7 +144,7 @@
 
   function step(time) {
     frame = null;
-    if (!isLoginVisible()) return;          // tela de login fechada ou aba em segundo plano: para
+    if (!isLoginVisible()) return; // tela de login fechada ou aba em segundo plano: para
     const dt = Math.min((time - last) / 16.67 || 1, 3);
     last = time;
     pointer.x += (pointer.tx - pointer.x) * 0.05;
@@ -138,7 +156,8 @@
       c.angle += c.spin * dt;
       c.flip += c.flipSpeed * dt;
       c.squash = 0.22 + 0.78 * Math.abs(Math.cos(c.flip));
-      if (c.y < -c.r * 2 || c.x < -c.r * 3 || c.x > width + c.r * 3) Object.assign(c, makeCell(c.layer, false), {sprite: null});
+      if (c.y < -c.r * 2 || c.x < -c.r * 3 || c.x > width + c.r * 3)
+        Object.assign(c, makeCell(c.layer, false), { sprite: null });
     }
     draw();
     tiltHero();
@@ -152,24 +171,41 @@
   }
 
   function start() {
-    if (reduceMotion) { draw(); return; }
-    if (!frame && isLoginVisible()) { last = performance.now(); frame = requestAnimationFrame(step); }
+    if (reduceMotion) {
+      draw();
+      return;
+    }
+    if (!frame && isLoginVisible()) {
+      last = performance.now();
+      frame = requestAnimationFrame(step);
+    }
   }
 
   // Mouse (computador) e inclinação (celular) movem a cena.
-  window.addEventListener("pointermove", e => {
-    pointer.tx = (e.clientX / width) * 2 - 1;
-    pointer.ty = (e.clientY / height) * 2 - 1;
-  }, {passive: true});
-  window.addEventListener("deviceorientation", e => {
-    if (e.gamma == null || e.beta == null) return;
-    pointer.tx = Math.max(-1, Math.min(1, e.gamma / 30));
-    pointer.ty = Math.max(-1, Math.min(1, (e.beta - 45) / 30));
-  }, {passive: true});
-  window.addEventListener("resize", () => { resize(); draw(); });
+  window.addEventListener(
+    "pointermove",
+    (e) => {
+      pointer.tx = (e.clientX / width) * 2 - 1;
+      pointer.ty = (e.clientY / height) * 2 - 1;
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "deviceorientation",
+    (e) => {
+      if (e.gamma == null || e.beta == null) return;
+      pointer.tx = Math.max(-1, Math.min(1, e.gamma / 30));
+      pointer.ty = Math.max(-1, Math.min(1, (e.beta - 45) / 30));
+    },
+    { passive: true },
+  );
+  window.addEventListener("resize", () => {
+    resize();
+    draw();
+  });
   document.addEventListener("visibilitychange", start);
   // Quando a pessoa sai (logout) a tela de login volta: retoma a animação.
-  new MutationObserver(start).observe(document.body, {attributes: true, attributeFilter: ["class"]});
+  new MutationObserver(start).observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
   resize();
   draw();
