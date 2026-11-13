@@ -1,3 +1,4 @@
+# Arquivos que NÃO entram na imagem do servidor (Docker/Railway)
 .git
 .env
 .env.*
@@ -11,7 +12,10 @@ _backup_auditoria_*
 docs
 tests
 scripts
-sql
-static/hemoflow-logo.png
-!sql/instalacao
-!sql/instalacao/*.sql
+banco
+static/img/hemoflow-logo.png
+
+# Exceções: o que o servidor precisa na nuvem
+!banco/instalacao
+!banco/instalacao/*.sql
+!scripts/criar_administrador.py

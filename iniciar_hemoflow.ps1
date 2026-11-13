@@ -25,14 +25,14 @@ function Configurar-Email {
         $env:HEMOFLOW_EMAIL_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
             [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
         Write-Host "Conferindo o login no Gmail..."
-        python -c "import app_mysql; app_mysql.check_email_login()"
+        python -c "import servidor; servidor.check_email_login()"
         if ($LASTEXITCODE -eq 0) { Write-Host "Gmail conectado: a recuperacao de senha esta ativa."; return }
         Remove-Item Env:\HEMOFLOW_EMAIL_PASSWORD -ErrorAction SilentlyContinue
     }
     Remove-Item Env:\HEMOFLOW_EMAIL_USER -ErrorAction SilentlyContinue
     Write-Host "Seguindo sem e-mail: o 'Esqueceu sua senha?' fica desativado nesta sessao."
 }
-$teste = "import sys, app_mysql`ntry:`n    app_mysql.connect_db().close()`nexcept Exception as e:`n    print('  Erro:', e); sys.exit(1)"
+$teste = "import sys, servidor`ntry:`n    servidor.connect_db().close()`nexcept Exception as e:`n    print('  Erro:', e); sys.exit(1)"
 
 for ($tentativa = 1; $tentativa -le 5; $tentativa++) {
     if (-not $env:HEMOFLOW_DB_PASSWORD) {
@@ -49,7 +49,7 @@ for ($tentativa = 1; $tentativa -le 5; $tentativa++) {
         Write-Host "Senha correta."
         Configurar-Email
         $env:HEMOFLOW_PORT = "$Porta"
-        python "$PSScriptRoot\app_mysql.py"
+        python "$PSScriptRoot\servidor.py"
         exit $LASTEXITCODE
     }
     Write-Host "Nao foi possivel conectar ao MySQL (veja o erro acima). Tente novamente."

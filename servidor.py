@@ -1,9 +1,30 @@
 #!/usr/bin/env python3
-"""HemoFlow — API acadêmica MySQL com autenticação por sessão.
+"""HemoFlow — servidor do sistema (API + páginas).
 
-Configure HEMOFLOW_DB_PASSWORD no ambiente antes de iniciar.
-As sessões são mantidas em memória e expiram após 8 horas.
-Para uso acadêmico/local com dados fictícios; não é um sistema clínico validado.
+Roda com a biblioteca padrão do Python (http.server) e guarda os dados no MySQL.
+Entrega as telas da pasta static/ e responde às chamadas /api/... feitas pelo
+js/app.js. Configure as variáveis HEMOFLOW_* (ver .env.example) antes de iniciar.
+
+ÍNDICE (procure pelo título com Ctrl+F)
+   1. CONFIGURAÇÃO ................. variáveis de ambiente, limites e listas fixas
+   2. BANCO DE DADOS ............... conexão (pool, TLS, fuso horário)
+   3. SENHAS E DATAS ............... hash PBKDF2, validação e formatação
+   4. E-MAIL ....................... envio do link de recuperação de senha
+   5. ERROS E VALIDAÇÕES ........... mensagens de duplicidade, e-mail, migrações
+   6. SERVIDOR HTTP (classe Handler)
+        6.1 Respostas e segurança .. JSON, cabeçalhos, sessão, IP
+        6.2 Rotas .................. GET, POST e DELETE (qual URL chama qual função)
+        6.3 Login e senha .......... entrar, bloqueio, recuperação de senha
+        6.4 Perfis e permissões .... administrador e matriz de permissões
+        6.5 Estoque e bolsas ....... painel, bolsas, movimentações
+        6.6 Doadores ............... listar, cadastrar, revisar, excluir
+        6.7 Notificações ........... alertas do sino, baixa e preferência
+        6.8 Contas e profissionais . contas de acesso e cadastro de profissionais
+        6.9 Arquivos das telas ..... HTML, CSS, JS e imagens da pasta static/
+   7. INSTALAÇÃO AUTOMÁTICA ........ cria as tabelas num banco novo (nuvem)
+   8. INÍCIO ....................... main()
+
+Projeto acadêmico: use somente dados fictícios.
 """
 from __future__ import annotations
 
@@ -32,6 +53,10 @@ from mysql.connector import Error as MySQLError
 from mysql.connector import pooling
 from mysql.connector.errors import PoolError
 
+
+# ============================================================================
+# 1. CONFIGURAÇÃO
+# ============================================================================
 BASE_DIR = Path(__file__).resolve().parent
 
 # ---- Ambiente: "development" (padrão, computador local) ou "production" (nuvem) ----
@@ -113,6 +138,10 @@ STATUS_LABELS = {
 }
 
 
+
+# ============================================================================
+# 2. BANCO DE DADOS
+# ============================================================================
 # TLS com o MySQL:
 #   "preferred" (padrão local): usa TLS se o servidor oferecer — o MySQL 8 exige
 #               conexão segura para autenticar com caching_sha2_password;
@@ -189,8 +218,12 @@ def connect_db():
         return mysql.connector.connect(**db_config())
 
 
+
+# ============================================================================
+# 3. SENHAS E DATAS
+# ============================================================================
 def verify_password(password: str, stored: str) -> bool:
-    """Valida o formato pbkdf2_sha256$iterações$salt$digest criado por setup_admin.py."""
+    """Valida o formato pbkdf2_sha256$iterações$salt$digest criado por scripts/criar_administrador.py."""
     try:
         algorithm, iterations_text, salt_text, digest_text = stored.split("$", 3)
         if algorithm != "pbkdf2_sha256":
@@ -246,7 +279,7 @@ def parse_date(value, label):
 
 def password_hash(password: str) -> str:
     """Mesmo formato de hash usado pela autenticação existente."""
-    iterations = 600_000  # mesmo valor de setup_admin.py (recomendação OWASP para PBKDF2-SHA256)
+    iterations = 600_000  # mesmo valor de scripts/criar_administrador.py (recomendação OWASP para PBKDF2-SHA256)
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     salt_text = base64.urlsafe_b64encode(salt).decode("ascii").rstrip("=")
@@ -254,12 +287,16 @@ def password_hash(password: str) -> str:
     return f"pbkdf2_sha256${iterations}${salt_text}${digest_text}"
 
 
+
+# ============================================================================
+# 4. E-MAIL (recuperação de senha)
+# ============================================================================
 def ensure_password_reset_table():
     """Confere se a tabela de recuperação existe.
 
     O usuário da aplicação (hemoflow_app) não tem privilégio CREATE, então a
     tabela não pode ser criada aqui. Ela é criada uma única vez, por um usuário
-    administrador do MySQL, com o script sql/criar_recuperacao_senhas.sql.
+    administrador do MySQL, com o script scripts/migracao_003_recuperacao_senha.py.
     """
     with connect_db() as db:
         cur = db.cursor()
@@ -272,7 +309,7 @@ def ensure_password_reset_table():
     if not exists:
         raise ApiError(
             "A recuperação de senha ainda não foi instalada no banco. "
-            "Execute sql/criar_recuperacao_senhas.sql com um usuário administrador do MySQL.", 503)
+            "Execute scripts/migracao_003_recuperacao_senha.py com um usuário administrador do MySQL.", 503)
 
 
 def smtp_connection():
@@ -334,6 +371,10 @@ def send_recovery_email(to_email: str, reset_url: str, name: str = ""):
         server.send_message(message)
 
 
+
+# ============================================================================
+# 5. ERROS E VALIDAÇÕES
+# ============================================================================
 class ApiError(Exception):
     def __init__(self, message, status=400):
         super().__init__(message)
@@ -428,6 +469,10 @@ def pending_migration_001() -> list[str]:
     return [f"{table}.{name}" for table, name in MIGRATION_001 if not schema_has(table, name)]
 
 
+
+# ============================================================================
+# 6. SERVIDOR HTTP: cabeçalhos de segurança e cookie de sessão
+# ============================================================================
 CSP = (
     "default-src 'self'; script-src 'self'; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -444,6 +489,10 @@ def session_cookie(value: str, max_age: int) -> str:
 class Handler(BaseHTTPRequestHandler):
     server_version = "HemoFlow/2.2"
 
+
+    # ========================================================================
+    # 6.1 Respostas e segurança
+    # ========================================================================
     def log_message(self, fmt, *args):
         print("[%s] %s" % (self.log_date_time_string(), fmt % args))
 
@@ -537,6 +586,10 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Sua sessão expirou. Entre novamente.", 401)
         return record
 
+
+    # ========================================================================
+    # 6.2 Rotas: cada endereço /api/... chama uma função abaixo
+    # ========================================================================
     def do_GET(self):
         parsed = urlparse(self.path)
         try:
@@ -690,6 +743,10 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
             self.handle_exception(exc)
 
+
+    # ========================================================================
+    # 6.3 Login, bloqueio de conta e recuperação de senha
+    # ========================================================================
     def forgot_password(self, data):
         email = str(data.get("email", "")).strip().lower()[:254]
         # Same response whether the account exists or not, to avoid account enumeration.
@@ -867,6 +924,10 @@ class Handler(BaseHTTPRequestHandler):
             db.commit()
             cur.close()
 
+
+    # ========================================================================
+    # 6.4 Perfis e permissões
+    # ========================================================================
     def require_operator(self, actor_id):
         if not isinstance(actor_id, int) or actor_id <= 0:
             raise ApiError("Usuário autenticado inválido.", 401)
@@ -935,6 +996,10 @@ class Handler(BaseHTTPRequestHandler):
             cur.close()
         return allowed
 
+
+    # ========================================================================
+    # 6.5 Estoque: painel, bolsas e movimentações
+    # ========================================================================
     def summary(self):
         today = hoje()
         with connect_db() as db:
@@ -1168,6 +1233,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(result)
 
 
+
+    # ========================================================================
+    # 6.6 Doadores
+    # ========================================================================
     def list_donors(self, query):
         search = query.get("q", [""])[0].strip()[:100]
         address = (", " + ", ".join(ADDRESS_FIELDS)) if donor_address_ready() else ""
@@ -1217,6 +1286,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"ok": True, "mensagem": "Cadastro marcado como revisado."})
 
     # ---------------- Notificações do sistema ----------------
+
+    # ========================================================================
+    # 6.7 Notificações (sino)
+    # ========================================================================
     def notifications_enabled(self, actor_id) -> bool:
         with connect_db() as db:
             cur = db.cursor()
@@ -1385,6 +1458,10 @@ class Handler(BaseHTTPRequestHandler):
         items.sort(key=lambda item: order.get(item["nivel"], 2))
         return items
 
+
+    # ========================================================================
+    # 6.6 Doadores (cadastro e exclusão)
+    # ========================================================================
     def create_donor(self, data, actor_id):
         name = str(data.get("nome", "")).strip()
         email = str(data.get("email", "")).strip().lower()
@@ -1504,6 +1581,10 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
         self.send_json({"ok": True, "mensagem": "Doador excluído."})
 
+
+    # ========================================================================
+    # 6.8 Contas de acesso e profissionais
+    # ========================================================================
     def list_access_accounts(self):
         """Lista contas e perfis disponíveis; o endpoint já exige ADMINISTRADOR."""
         with connect_db() as db:
@@ -1639,6 +1720,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"ok": True, "id": professional_id,
                         "mensagem": "Profissional cadastrado com sucesso."}, 201)
 
+
+    # ========================================================================
+    # 6.5 Estoque: histórico de movimentações
+    # ========================================================================
     def list_movements(self):
         with connect_db() as db:
             cur = db.cursor(dictionary=True)
@@ -1659,6 +1744,10 @@ class Handler(BaseHTTPRequestHandler):
             row["observacao"] = row.get("observacao") or ""
         self.send_json(rows)
 
+
+    # ========================================================================
+    # 6.9 Arquivos das telas (pasta static/)
+    # ========================================================================
     def static_file(self, path):
         relative = "index.html" if path in ("/", "") else path.lstrip("/")
         target = (BASE_DIR / "static" / relative).resolve()
@@ -1693,6 +1782,10 @@ class Handler(BaseHTTPRequestHandler):
         super().send_error(code, message, explain)
 
 
+
+# ============================================================================
+# Servidor com várias conexões ao mesmo tempo
+# ============================================================================
 class HemoFlowServer(ThreadingHTTPServer):
     # No Windows, SO_REUSEADDR permite que DOIS servidores escutem a mesma porta;
     # um servidor antigo esquecido continuaria respondendo com arquivos antigos.
@@ -1701,7 +1794,11 @@ class HemoFlowServer(ThreadingHTTPServer):
     daemon_threads = True
 
 
-INSTALL_DIR = BASE_DIR / "sql" / "instalacao"
+
+# ============================================================================
+# 7. INSTALAÇÃO AUTOMÁTICA (banco novo na nuvem)
+# ============================================================================
+INSTALL_DIR = BASE_DIR / "banco" / "instalacao"
 
 
 def sql_statements(sql_text: str):
@@ -1721,7 +1818,7 @@ def sql_statements(sql_text: str):
 def auto_install_schema() -> bool:
     """HEMOFLOW_AUTO_INSTALL=1: se o banco estiver VAZIO (sem a tabela usuarios), cria a
     estrutura e os dados de referência (perfis, permissões, tipos sanguíneos) a partir de
-    sql/instalacao/. Nunca roda num banco que já tem o HemoFlow e não copia dados pessoais.
+    banco/instalacao/. Nunca roda num banco que já tem o HemoFlow e não copia dados pessoais.
     Pensado para a nuvem, onde o banco não fica exposto à internet."""
     if os.environ.get("HEMOFLOW_AUTO_INSTALL", "0") != "1":
         return False
@@ -1744,12 +1841,16 @@ def auto_install_schema() -> bool:
             print(f"  OK: {path.name} ({len(commands)} comandos)")
         cur.close()
         _SCHEMA_OK.clear()
-        print("Estrutura instalada. Crie o primeiro administrador com: python setup_admin.py")
+        print("Estrutura instalada. Crie o primeiro administrador com: python scripts/criar_administrador.py")
         return True
     finally:
         conn.close()
 
 
+
+# ============================================================================
+# 8. INÍCIO
+# ============================================================================
 def main():
     print(f"HemoFlow ({'produção' if PRODUCTION else 'desenvolvimento'}) escutando em http://{HOST}:{PORT}")
     print(f"MySQL: {DB_HOST}:{DB_PORT}/{DB_NAME} (usuário {DB_USER}, TLS: {DB_SSL})")

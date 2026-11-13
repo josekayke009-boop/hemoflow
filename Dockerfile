@@ -12,10 +12,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Só o necessário para rodar: backend + interface.
-COPY app_mysql.py setup_admin.py ./
+COPY servidor.py ./
+COPY scripts/criar_administrador.py ./scripts/
 COPY static ./static
 # Estrutura do banco para a instalação automática (HEMOFLOW_AUTO_INSTALL=1).
-COPY sql/instalacao ./sql/instalacao
+COPY banco/instalacao ./banco/instalacao
 
 # Não roda como root dentro do contêiner.
 RUN useradd --create-home --uid 10001 hemoflow
@@ -25,4 +26,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/healthz' % os.environ.get('PORT', os.environ.get('HEMOFLOW_PORT', '8000')), timeout=4)"
 
-CMD ["python", "app_mysql.py"]
+CMD ["python", "servidor.py"]
