@@ -124,6 +124,21 @@ class HeadersAndHealthTests(ServerTestCase):
             self.assertIn("script-src 'self'", headers["Content-Security-Policy"], path)
             self.assertEqual(headers["X-Content-Type-Options"], "nosniff", path)
 
+    def test_arquivos_do_app_instalavel(self):
+        status, headers, body = self.request("/manifest.webmanifest")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "application/manifest+json")
+        manifest = json.loads(body)
+        self.assertEqual((manifest["short_name"], manifest["display"], manifest["start_url"]), ("HemoFlow", "standalone", "/"))
+        for icon in manifest["icons"]:
+            self.assertEqual(self.request(icon["src"])[0], 200, icon["src"])
+        status, headers, body = self.request("/sw.js")
+        self.assertEqual(status, 200)
+        self.assertIn("javascript", headers["Content-Type"])
+        self.assertIn('url.pathname.startsWith("/api/")', body.decode())   # API nunca vai para o cache
+        status, _, body = self.request("/")
+        self.assertIn(b'rel="manifest"', body)
+
     def test_healthz_ok_e_banco_fora(self):
         status, _, body = self.request("/healthz")
         self.assertEqual((status, json.loads(body)["banco"]), (200, "ok"))

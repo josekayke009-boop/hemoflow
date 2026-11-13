@@ -3,7 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f00012">
+  <meta name="theme-color" content="#8b0a1a">
+  <meta name="description" content="HemoFlow — gestão de doadores, bolsas de sangue e estoque do hemocentro.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="HemoFlow">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>HemoFlow — Gestão de hemocomponentes</title>
   <link rel="icon" type="image/png" href="/hemoflow-icon.png">
   <link rel="stylesheet" href="/styles.css">
@@ -86,6 +93,7 @@
         <div class="user-chip"><span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span><button id="logout-button" class="logout-button" type="button">Sair</button></div>
       </div>
     </header>
+    <div id="offline-banner" class="offline-banner hidden" role="status" aria-live="polite"></div>
     <div id="toast" class="toast hidden" role="status" aria-live="polite"><span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span></div>
     <section id="page-content" class="page-content"></section>
   </main>

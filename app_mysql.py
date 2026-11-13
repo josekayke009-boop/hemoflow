@@ -1671,6 +1671,8 @@ class Handler(BaseHTTPRequestHandler):
             ".css": "text/css; charset=utf-8",
             ".js": "application/javascript; charset=utf-8",
             ".png": "image/png",
+            ".webmanifest": "application/manifest+json",
+            ".json": "application/json",
             ".svg": "image/svg+xml",
             ".ico": "image/x-icon",
         }.get(target.suffix.lower(), "application/octet-stream")

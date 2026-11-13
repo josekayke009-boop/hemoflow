@@ -1,0 +1,20 @@
+{
+  "name": "HemoFlow — Gestão de hemocentro",
+  "short_name": "HemoFlow",
+  "description": "Gestão de doadores, bolsas de sangue e estoque do hemocentro.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "background_color": "#ffffff",
+  "theme_color": "#8b0a1a",
+  "categories": ["medical", "business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
