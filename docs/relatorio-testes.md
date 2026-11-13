@@ -1,5 +1,7 @@
 # Registro de testes: 10/11/2026 (correção de e-mail duplicado)
 
+> **Nota:** este relatório foi escrito antes da reorganização das pastas e cita os nomes de arquivo da época. Correspondência atual: `app_mysql.py` → `servidor.py`; `setup_admin.py` → `scripts/criar_administrador.py`; `migrar_cadastros.py` → `scripts/migracao_000_tipo_sanguineo_peso.py`; `sql/` → `banco/`; `static/app.js` → `static/js/app.js`; `static/styles.css` → `static/css/estilos.css`; `tests/test_cadastros_mysql.py` → `tests/test_cadastros.py`; `tests/test_producao.py` → `tests/test_seguranca.py`. Os resultados registrados não foram alterados.
+
 Comando: `python -m unittest discover -s tests -v` · Python 3.14.0 · resultado: **18 executados, 18 aprovados**.
 
 Os testes de `test_cadastros_mysql.py` usam um banco **simulado**. Eles comprovam as regras do backend, mas **não** comprovam o comportamento do MySQL real. Esses itens aparecem abaixo como **não executados** até a migração ser aplicada e o teste ser feito no navegador.

@@ -1,5 +1,7 @@
 # Auditoria técnica do HemoFlow (10/11/2026)
 
+> **Nota:** este relatório foi escrito antes da reorganização das pastas e cita os nomes de arquivo da época. Correspondência atual: `app_mysql.py` → `servidor.py`; `setup_admin.py` → `scripts/criar_administrador.py`; `migrar_cadastros.py` → `scripts/migracao_000_tipo_sanguineo_peso.py`; `sql/` → `banco/`; `static/app.js` → `static/js/app.js`; `static/styles.css` → `static/css/estilos.css`; `tests/test_cadastros_mysql.py` → `tests/test_cadastros.py`; `tests/test_producao.py` → `tests/test_seguranca.py`. Os resultados registrados não foram alterados.
+
 Etapa 1 do plano de finalização e migração. Nenhum arquivo de código ou do banco foi alterado nesta etapa.
 
 ## 1. O que foi verificado

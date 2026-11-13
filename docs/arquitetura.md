@@ -1,57 +1,60 @@
-# Arquitetura e requisitos — HemoFlow
+# Arquitetura do HemoFlow
 
-## Objetivo
+## Visão geral
 
-Oferecer uma base demonstrativa para cadastro e acompanhamento operacional de estoque de bolsas. O escopo acadêmico abrange cadastro, consulta, filtros, indicadores de inventário e histórico de mudanças de status. O sistema não recomenda doadores, não calcula compatibilidade para transfusão e não substitui a decisão de profissionais habilitados.
-
-## Componentes
-
-```text
-Navegador
-  ├── static/index.html + styles.css + app.js
-  └── HTTP/JSON em localhost
-          └── app.py (servidor e API padrão do Python)
-                  └── SQLite (hemoflow.db)
+```mermaid
+flowchart LR
+    U[Navegador ou aplicativo instalado] -- HTTPS --> P[Proxy da hospedagem]
+    P --> S[servidor.py<br/>API + telas]
+    S -- conexões reaproveitadas, TLS --> B[(MySQL 8)]
+    S -- SMTP --> G[Gmail<br/>recuperação de senha]
 ```
 
-O cliente renderiza a interface e consome a API JSON. O servidor valida os dados, aplica regras simples de inventário e persiste os registros em SQLite. Os arquivos da interface são servidos apenas a partir da pasta `static`.
+O sistema é uma **página única** (`static/index.html`). O `js/app.js` monta cada tela dentro dessa página e busca os dados no servidor pela API (`/api/...`), sempre em JSON. O `servidor.py` entrega as telas, valida tudo de novo, aplica as permissões e grava no MySQL.
 
-## Requisitos funcionais
+## Camadas
 
-- **RF01:** cadastrar bolsa com tipo sanguíneo, volume, coleta, validade, localização e status inicial.
-- **RF02:** gerar automaticamente um código interno único para a bolsa.
-- **RF03:** listar bolsas ordenadas pela data de validade.
-- **RF04:** filtrar por tipo sanguíneo e status; pesquisar por código ou localização.
-- **RF05:** exibir totais gerais, disponíveis válidas, vencidas, vencimentos próximos e totais disponíveis por tipo.
-- **RF06:** alterar o status segundo as transições documentadas, identificando responsável/observação.
-- **RF07:** consultar até 200 movimentações recentes.
+| Camada | Arquivo | Responsabilidade |
+|---|---|---|
+| Telas | `static/index.html`, `static/css/estilos.css` | Estrutura e visual (vermelho/vinho e branco), responsivo para celular |
+| Lógica das telas | `static/js/app.js` | Menu, telas, formulários, máscaras, avisos, notificações, modo sem conexão |
+| Animação do login | `static/js/fundo-login.js` | Células de sangue e H em 3D |
+| Aplicativo | `static/manifest.webmanifest`, `static/sw.js` | Instalação no celular/computador e abertura sem internet |
+| Servidor | `servidor.py` | Rotas da API, sessão, permissões, regras de negócio, envio de e-mail |
+| Banco | `banco/instalacao`, `banco/migracoes` | Estrutura, dados de referência e alterações |
 
-## Requisitos não funcionais
+## Rotas da API
 
-- **RNF01:** interface em português, adaptável a telas pequenas e sem dependências de instalação.
-- **RNF02:** persistência relacional SQLite local com chaves estrangeiras e índices de consulta.
-- **RNF03:** validação de entrada na interface e no servidor; o servidor é a autoridade das regras.
-- **RNF04:** operações SQL parametrizadas e escape de conteúdo pelo uso de `textContent` no cliente.
-- **RNF05:** escuta local em `127.0.0.1` por padrão; proteger e revisar antes de qualquer implantação em rede.
+| Método | Rota | Permissão | Função |
+|---|---|---|---|
+| POST | `/api/login`, `/api/logout` | — | Entrar e sair |
+| GET | `/api/session` | — | Dados do usuário logado |
+| POST | `/api/forgot-password`, `/api/reset-password` | — | Recuperação de senha |
+| GET | `/api/summary` | painel.consultar | Indicadores do estoque |
+| GET / POST | `/api/bags` | estoque.consultar / estoque.bolsa.criar | Listar e registrar bolsas |
+| POST | `/api/bags/{id}/transition` | depende da situação | Reservar, liberar, transfundir, descartar |
+| GET | `/api/movements` | estoque.consultar | Histórico |
+| GET / POST | `/api/donors` | doadores.consultar / doadores.criar | Listar e cadastrar doadores |
+| POST | `/api/donors/{id}/review` | doadores.editar | Marcar cadastro como revisado |
+| DELETE | `/api/donors/{id}` | doadores.editar | Excluir doador |
+| POST | `/api/professionals` | Administrador | Cadastrar profissional |
+| GET / POST | `/api/access-accounts` | Administrador | Contas de acesso e perfis |
+| GET | `/api/notifications` | usuário logado | Alertas do sino |
+| POST | `/api/notifications/read`, `/api/notifications/preferences` | usuário logado | Dar baixa e ligar/desligar |
+| GET | `/healthz` | — | Verificação de saúde (hospedagem) |
 
-## Regras operacionais demonstrativas
+## Segurança
 
-- Tipos sanguíneos aceitos: A+, A−, B+, B−, AB+, AB−, O+, O−.
-- Volume aceito: inteiro de 1 a 1000 ml.
-- A validade deve ser igual ou posterior à coleta; não se cadastra uma nova bolsa já vencida.
-- Bolsa vencida não conta como disponível válida e não pode ser marcada como transfundida pela API.
-- Status inicial: disponível ou quarentena.
-- As transições permitidas constam em `banco-de-dados.md`.
+- Senhas guardadas com **PBKDF2-SHA256** (600.000 iterações) e sal aleatório.
+- Sessão em cookie `HttpOnly` e `SameSite=Strict` (e `Secure` na nuvem), com validade de 8 horas.
+- **Permissões verificadas no servidor** em todas as rotas; o frontend só esconde botões.
+- Bloqueio de 15 minutos após 5 senhas erradas na mesma conta, e limite de tentativas por IP.
+- Consultas SQL sempre parametrizadas (sem concatenar texto digitado pelo usuário).
+- Textos exibidos na tela passam por `esc()` (proteção contra XSS); o servidor envia Content-Security-Policy e X-Frame-Options.
+- Recuperação de senha: link de uso único, válido por 30 minutos; o banco guarda só o hash do token; a resposta é a mesma para e-mails cadastrados ou não.
+- O modo sem conexão guarda no aparelho **somente dados do estoque** (sem dados pessoais), por até 24 horas, e apaga ao sair.
 
-Essas regras são simplificações didáticas e devem ser substituídas/revisadas segundo protocolos aplicáveis, se o projeto evoluir.
+## Execução
 
-## Limitações conhecidas
-
-Sem autenticação, autorização, criptografia de dados, HTTPS, backup automatizado, gestão de concorrência clínica, integração com laboratório, controle de lote/hemocomponente, validação por autoridade sanitária ou certificação. Histórico recente limitado a 200 linhas; listagem limitada a 500 bolsas. O status de vencimento é calculado com a data local do servidor.
-
-## Casos de uso
-
-1. Operador cadastra uma unidade recebida e informa sua localização de armazenamento.
-2. Operador localiza unidades por código/tipo/status.
-3. Operador registra reserva, retorno à disponibilidade, quarentena, transfusão ou descarte conforme as transições permitidas.
-4. Orientador avalia os indicadores e o registro de movimentações durante a demonstração.
+- **No computador:** `iniciar_hemoflow.ps1` confere a senha do MySQL e inicia o `servidor.py` em http://127.0.0.1:8000.
+- **Na nuvem:** o `Dockerfile` monta a imagem e o Railway publica a cada envio ao GitHub. Detalhes em [implantacao.md](implantacao.md).
