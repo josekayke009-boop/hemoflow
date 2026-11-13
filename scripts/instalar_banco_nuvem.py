@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """HemoFlow — instala a estrutura do banco num MySQL NOVO (ex.: MySQL na nuvem).
 
-Executa, em ordem, os arquivos de sql/instalacao/:
+Executa, em ordem, os arquivos de banco/instalacao/:
   01_estrutura.sql         26 tabelas, chaves, índices e regras (sem dados)
   02_dados_referencia.sql  tipos sanguíneos, hemocomponentes, perfis e permissões
   03_recuperacao_senhas.sql
@@ -12,7 +12,7 @@ já tiver as tabelas do HemoFlow, o script PARA sem alterar nada.
 
 Uso (os dados de conexão vêm do painel da hospedagem; a senha é pedida sem aparecer):
     python scripts/instalar_banco_nuvem.py
-Depois, crie o primeiro administrador no banco novo com setup_admin.py
+Depois, crie o primeiro administrador no banco novo com scripts/criar_administrador.py
 (usando as mesmas variáveis HEMOFLOW_DB_*).
 """
 import getpass
@@ -22,7 +22,7 @@ from pathlib import Path
 import mysql.connector
 
 ROOT = Path(__file__).resolve().parent.parent
-FILES = sorted((ROOT / "sql" / "instalacao").glob("0*.sql"))
+FILES = sorted((ROOT / "banco" / "instalacao").glob("0*.sql"))
 
 
 def statements(sql_text: str):
@@ -93,7 +93,7 @@ def main():
     cur.execute("SELECT COUNT(*) FROM permissoes")
     permissions = cur.fetchone()[0]
     print(f"\nConcluído: {tables} tabelas, {profiles} perfis, {permissions} permissões.")
-    print("Próximo passo: criar o primeiro administrador com setup_admin.py apontando para este banco.")
+    print("Próximo passo: criar o primeiro administrador com scripts/criar_administrador.py apontando para este banco.")
     cur.close()
     conn.close()
 

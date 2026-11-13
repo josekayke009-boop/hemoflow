@@ -6,7 +6,7 @@ Uso (na pasta do projeto, com usuário administrativo do MySQL, ex.: root):
 
 Só CRIA a tabela se ela ainda não existir (CREATE TABLE IF NOT EXISTS):
 não altera nem apaga nenhum dado. Pode ser executado mais de uma vez.
-Mesmo conteúdo de sql/criar_recuperacao_senhas.sql.
+Mesmo conteúdo de banco/instalacao/03_recuperacao_senhas.sql.
 """
 import os
 import sys
@@ -20,7 +20,7 @@ from redefinir_senha_app import ask_secret  # noqa: E402  (senha com asteriscos)
 from instalar_banco_nuvem import statements  # noqa: E402
 
 DB_NAME = os.environ.get("HEMOFLOW_DB_NAME", "hemoflow")
-SQL_FILE = HERE.parent / "sql" / "instalacao" / "03_recuperacao_senhas.sql"
+SQL_FILE = HERE.parent / "banco" / "instalacao" / "03_recuperacao_senhas.sql"
 
 
 def table_exists(cur):

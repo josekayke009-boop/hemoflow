@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""Migração não destrutiva do HemoFlow: adiciona campos de doador se faltarem."""
-import app_mysql
+"""HemoFlow — Migração 000: tipo sanguíneo e peso do doador (só acrescenta colunas).
+
+Uso: python scripts/migracao_000_tipo_sanguineo_peso.py
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import servidor  # noqa: E402
 
 def main():
-    with app_mysql.connect_db() as db:
+    with servidor.connect_db() as db:
         cur = db.cursor()
         cur.execute("""
             SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA=%s AND TABLE_NAME='doadores'
-        """, (app_mysql.DB_NAME,))
+        """, (servidor.DB_NAME,))
         existing = {row[0] for row in cur.fetchall()}
         additions = {
             "tipo_sanguineo": "VARCHAR(3) NULL",

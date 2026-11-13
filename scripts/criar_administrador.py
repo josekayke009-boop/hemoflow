@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cria o primeiro usuário administrador do HemoFlow no MySQL.
 
-Execute com: python setup_admin.py
+Execute com: python scripts/criar_administrador.py
 Não grava senhas no arquivo. O hash usa PBKDF2-HMAC-SHA256.
 """
 import base64
@@ -12,7 +12,8 @@ import secrets
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Pasta principal do projeto (onde fica servidor.py)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import mysql.connector
 
@@ -109,9 +110,9 @@ def main():
     try:
         # Mesmas configurações do app (HEMOFLOW_DB_HOST, _PORT, _USER, _NAME, _SSL...),
         # então funciona tanto no MySQL local quanto no MySQL da nuvem com TLS.
-        import app_mysql
-        app_mysql.DB_PASSWORD = db_password
-        conn = mysql.connector.connect(**app_mysql.db_config())
+        import servidor
+        servidor.DB_PASSWORD = db_password
+        conn = mysql.connector.connect(**servidor.db_config())
         conn.start_transaction()
         cur = conn.cursor(dictionary=True)
 
