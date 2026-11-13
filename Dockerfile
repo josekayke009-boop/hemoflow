@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Só o necessário para rodar: backend + interface.
 COPY servidor.py ./
-COPY scripts/criar_administrador.py ./scripts/
+COPY scripts/criar_administrador.py scripts/migracao_004_cpf_doador.py ./scripts/
 COPY static ./static
 # Estrutura do banco para a instalação automática (HEMOFLOW_AUTO_INSTALL=1).
 COPY banco/instalacao ./banco/instalacao

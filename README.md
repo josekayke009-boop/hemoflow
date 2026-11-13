@@ -17,12 +17,13 @@ Aponte a câmera do celular para abrir o sistema. Ele também pode ser instalado
 |---|---|
 | Login e acesso | Login com sessão segura, bloqueio após tentativas erradas, recuperação de senha por e-mail |
 | Perfis | Administrador, Responsável técnico, Operador de estoque e Consulta, com permissões verificadas no servidor |
-| Doadores | Cadastro com endereço, máscaras de telefone/CPF/CEP, e-mail único, revisão anual do cadastro e exclusão |
+| Doadores | Cadastro com CPF validado (sem repetir e parcialmente oculto na lista, LGPD), endereço, máscaras, e-mail único, revisão anual e exclusão |
 | Profissionais | Cadastro de profissionais licenciados (e-mail e registro únicos) |
 | Bolsas e estoque | Registro de bolsas, estoque por tipo sanguíneo, validade e situação (disponível, reservada, quarentena...) |
 | Movimentações | Reserva, liberação, transfusão e descarte, com histórico |
 | Alertas | Notificações de estoque crítico, bolsas vencendo/vencidas e cadastros desatualizados |
 | Relatórios | Indicadores do estoque e distribuição por tipo sanguíneo |
+| Suporte | Aba para enviar dúvidas, problemas e sugestões por e-mail à equipe, com número de protocolo |
 | Aplicativo | Instalável no celular e no computador (PWA), com consulta do estoque sem internet |
 
 ## Tecnologias
@@ -81,7 +82,7 @@ Para criar o banco do zero use `scripts/instalar_banco_nuvem.py` (funciona tamb�
 python -m unittest discover -s tests -v
 ```
 
-São 57 testes automatizados (cadastros, segurança, notificações e recuperação de senha). Os resultados dos testes manuais estão em [docs/relatorio-testes.md](docs/relatorio-testes.md).
+São 70 testes automatizados (cadastros, CPF, suporte, segurança, notificações e recuperação de senha). Os resultados dos testes manuais estão em [docs/relatorio-testes.md](docs/relatorio-testes.md).
 
 ## Perfis de acesso
 

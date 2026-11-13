@@ -41,6 +41,7 @@ O sistema é uma **página única** (`static/index.html`). O `js/app.js` monta c
 | GET / POST | `/api/access-accounts` | Administrador | Contas de acesso e perfis |
 | GET | `/api/notifications` | usuário logado | Alertas do sino |
 | POST | `/api/notifications/read`, `/api/notifications/preferences` | usuário logado | Dar baixa e ligar/desligar |
+| POST | `/api/support` | usuário logado | Enviar mensagem ao suporte (e-mail) |
 | GET | `/healthz` | — | Verificação de saúde (hospedagem) |
 
 ## Segurança
@@ -52,6 +53,8 @@ O sistema é uma **página única** (`static/index.html`). O `js/app.js` monta c
 - Consultas SQL sempre parametrizadas (sem concatenar texto digitado pelo usuário).
 - Textos exibidos na tela passam por `esc()` (proteção contra XSS); o servidor envia Content-Security-Policy e X-Frame-Options.
 - Recuperação de senha: link de uso único, válido por 30 minutos; o banco guarda só o hash do token; a resposta é a mesma para e-mails cadastrados ou não.
+- CPF do doador: dígitos verificadores conferidos no navegador e no servidor; a API só devolve o CPF mascarado (`***.456.789-**`).
+- Suporte: no máximo 5 mensagens por hora por usuário.
 - O modo sem conexão guarda no aparelho **somente dados do estoque** (sem dados pessoais), por até 24 horas, e apaga ao sair.
 
 ## Execução

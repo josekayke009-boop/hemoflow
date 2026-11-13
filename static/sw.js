@@ -7,7 +7,7 @@
  *    neste cache. O modo offline (só consulta do estoque) é tratado no app.js, com
  *    dados sem informação pessoal.
  */
-const VERSION = "hemoflow-v4";
+const VERSION = "hemoflow-v5";
 const SHELL = [
   "/",
   "/js/app.js",

@@ -2006,3 +2006,34 @@ body.auth-required .login-screen .login-card {
     display: none;
   }
 }
+
+/* ==========================================================================
+   SUPORTE (aba Suporte) e CPF na lista de doadores
+   ========================================================================== */
+.support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.support-info p {
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+.support-info .muted-note {
+  color: var(--muted, #6b7280);
+  font-size: 0.85rem;
+}
+/* Atalhos que só aparecem no menu inferior do celular */
+.nav.nav-mobile-only {
+  display: none;
+}
+.cpf-cell {
+  font-family: Consolas, "Courier New", monospace;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+}

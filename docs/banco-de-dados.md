@@ -42,10 +42,10 @@ erDiagram
 
 | Tabela | Para que serve | Campos principais |
 |---|---|---|
-| `doadores` | Cadastro de doadores | `nome`, `email` (único), `telefone`, `data_nascimento`, `tipo_sanguineo`, `peso_kg`, endereço (`cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`), `codigo_ficticio`, `status`, `atualizado_em` |
+| `doadores` | Cadastro de doadores | `nome`, `cpf` (único, só números), `email` (único), `telefone`, `data_nascimento`, `tipo_sanguineo`, `peso_kg`, endereço (`cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`), `codigo_ficticio`, `status`, `atualizado_em` |
 | `profissionais` | Equipe licenciada | `nome`, `email` (único), `registro_profissional` (único), `cargo`, `telefone`, `usuario_id` |
 
-O CPF digitado no formulário **não é armazenado**.
+O CPF é guardado só com os números e validado pelos dígitos verificadores. A tela de doadores mostra apenas o meio do número (`***.456.789-**`), por causa da LGPD. Doadores cadastrados antes da migração 004 ficam sem CPF.
 
 ### Estoque
 
@@ -76,7 +76,7 @@ Bolsa vencida não pode ser registrada como transfundida nem cadastrada como nov
 
 ## Regras garantidas pelo próprio banco
 
-- E-mail único em `usuarios`, `doadores` e `profissionais` (índices `UNIQUE`).
+- E-mail único em `usuarios`, `doadores` e `profissionais` e CPF único em `doadores` (índices `UNIQUE`).
 - Chaves estrangeiras impedem apagar um doador que já tem doações ou agendamentos.
 - Uma reserva ativa por bolsa e um descarte por bolsa.
 - Valores permitidos de situação, prioridade e status conferidos por `CHECK`.
@@ -89,3 +89,4 @@ Bolsa vencida não pode ser registrada como transfundida nem cadastrada como nov
 | 001 | E-mail único em doadores e profissionais | `scripts/migracao_001_email_unico.py` |
 | 002 | Endereço do doador | `scripts/migracao_002_endereco_doador.py` |
 | 003 | Tabela de recuperação de senha | `scripts/migracao_003_recuperacao_senha.py` |
+| 004 | CPF do doador (único) | `scripts/migracao_004_cpf_doador.py` |

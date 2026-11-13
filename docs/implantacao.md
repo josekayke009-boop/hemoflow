@@ -32,7 +32,8 @@ Navegador ──HTTPS──► Proxy do Railway (certificado automático)
 | `HEMOFLOW_TZ` | `America/Recife` (vencimentos e `NOW()` no horário local) |
 | `HEMOFLOW_TRUST_PROXY` | `1` (IP real do usuário para o limite de tentativas de login) |
 | `HEMOFLOW_AUTO_INSTALL` | `1` (cria as tabelas se o banco estiver vazio) |
-| `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD` | conta Gmail e **senha de app** de 16 letras, para a recuperação de senha |
+| `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD` | conta Gmail e **senha de app** de 16 letras, para a recuperação de senha e a aba Suporte |
+| `HEMOFLOW_SUPPORT_EMAIL` | (opcional) caixa que recebe as mensagens da aba Suporte; sem ela, vão para `HEMOFLOW_EMAIL_USER` |
 
 No painel (*Settings*) também estão configurados: verificação de saúde em `/healthz` e porta de destino `8080`.
 
@@ -67,7 +68,8 @@ Os doadores e bolsas do banco local **não** foram copiados para a nuvem.
    ```
 2. `git add`, `git commit` e `git push`. O Railway reconstrói a imagem e publica sozinho (cerca de 1 a 2 minutos).
 3. Se alterou arquivos de `static/`, aumente o `VERSION` em `static/sw.js` para o aplicativo instalado baixar a versão nova.
-4. Mudanças de estrutura do banco: **backup primeiro**, depois o script de migração (como `scripts/migracao_002_endereco_doador.py`) apontado para o banco da nuvem.
+4. Migração 004 (CPF) na nuvem, depois do backup: no *Console* do serviço `hemoflow`, `python scripts/migracao_004_cpf_doador.py --usar-variaveis`.
+5. Mudanças de estrutura do banco: **backup primeiro**, depois o script de migração (como `scripts/migracao_002_endereco_doador.py`) apontado para o banco da nuvem.
 
 ## 6. Backup e restauração
 

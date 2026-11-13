@@ -21,6 +21,7 @@
  *  11. APLICATIVO INSTALÁVEL (PWA) .. botão Instalar
  *  12. NOTIFICAÇÕES (SINO) .......... alertas, baixa e preferência
  *  13. DOADORES: REVISAR E EXCLUIR .. botões da tabela de doadores
+ *  15. SUPORTE ...................... aba Suporte (mensagem por e-mail)
  *  14. INÍCIO ....................... cliques gerais e abertura do sistema
  */
 (() => {
@@ -57,6 +58,7 @@
     reports: ["Relatórios", "Atualizado hoje"],
     settings: ["Configurações", "Preferências do sistema"],
     accessAccounts: ["Contas de acesso", "Gerenciamento de usuários e perfis"],
+    support: ["Suporte", "Fale com a equipe do HemoFlow"],
   };
   // Protege textos exibidos na tela contra código malicioso (XSS).
   const esc = (v) =>
@@ -137,6 +139,17 @@
       return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
     },
   };
+  // Confere os dígitos verificadores do CPF antes de enviar (o servidor valida de novo).
+  function validCpf(value) {
+    const d = onlyDigits(value);
+    if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+    for (const size of [9, 10]) {
+      let total = 0;
+      for (let i = 0; i < size; i++) total += Number(d[i]) * (size + 1 - i);
+      if (((total * 10) % 11) % 10 !== Number(d[size])) return false;
+    }
+    return true;
+  }
   // "Olhinho": mostra/oculta o que foi digitado em todos os campos de senha.
   const EYE =
     '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -723,7 +736,7 @@
       );
     return (
       pageHeading("Cadastros", "Cadastre doadores e profissionais licenciados com segurança.") +
-      `<section class="panel choice-panel"><p class="eyebrow choice-label">TIPO DE CADASTRO</p><button class="choice-option ${state.donorType === "donor" ? "active" : ""}" data-action="donor-type" data-value="donor"><span class="choice-icon">♢</span><span><b>Novo doador</b><small>Dados pessoais e clínicos</small></span></button>${state.user?.is_admin ? `<button class="choice-option ${state.donorType === "staff" ? "active" : ""}" data-action="donor-type" data-value="staff"><span class="choice-icon">♙</span><span><b>Pessoa licenciada</b><small>Equipe profissional (sem login)</small></span></button>` : ""}<div class="privacy-note"><b>♧ &nbsp; Dados protegidos</b><p>As informações são armazenadas de acordo com as normas da LGPD.</p></div></section><section class="form-panel"><div class="form-panel-heading"><span class="choice-icon" style="background:var(--red-pale);color:var(--red)">♢</span><div><h2>${state.donorType === "donor" ? "Cadastro de doador" : "Cadastro de pessoa licenciada"}</h2><p>Preencha os campos obrigatórios indicados com *</p></div></div><div class="form-body"><h3>Informações pessoais</h3><form id="visual-registration-form"><div class="form-grid"><label>Nome completo *<input name="nome" required maxlength="120" placeholder="Digite o nome completo"></label><label>CPF *<input name="cpf" data-mask="cpf" inputmode="numeric" maxlength="14" autocomplete="off" placeholder="000.000.000-00"></label>${state.donorType === "donor" ? `<label>Data de nascimento *<input name="data_nascimento" type="date" required></label>` : ""}<label>E-mail *<input name="email" type="email" required maxlength="254" placeholder="nome@exemplo.com"></label><label>Telefone *<input name="telefone" data-mask="phone" inputmode="tel" maxlength="15" required placeholder="(00) 00000-0000"></label>${state.donorType === "donor" ? `<label>Tipo sanguíneo *<select name="tipo_sanguineo" required><option value="">Selecione</option>${bloodTypes.map((t) => `<option>${t}</option>`).join("")}</select></label><label>Peso (kg) *<input name="peso_kg" type="number" min="1" max="500" step="0.1" placeholder="Ex.: 72" required></label><label class="span-2">Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações adicionais"></textarea></label>` : `<label>Função *<select name="cargo" required><option value="">Selecione</option><option>Enfermagem</option><option>Laboratório</option><option>Administração</option><option>Responsável técnico</option></select></label><label>Conselho profissional<input name="registro_profissional" maxlength="80" placeholder="Ex.: COREN, CRBM"></label><label class="span-2">Observações<textarea name="observacoes" rows="3" maxlength="2000"></textarea></label>`}</div>${state.donorType === "donor" ? `<h3 class="form-section-title">Endereço</h3><div class="form-grid"><label>CEP<input name="cep" data-mask="cep" inputmode="numeric" maxlength="9" placeholder="00000-000"></label><label>Rua / Avenida *<input name="logradouro" required maxlength="150" placeholder="Ex.: Rua da Aurora"></label><label>Número *<input name="numero" required maxlength="10" placeholder="Ex.: 123 ou S/N"></label><label>Complemento<input name="complemento" maxlength="80" placeholder="Apto, bloco, casa…"></label><label>Bairro *<input name="bairro" required maxlength="80" placeholder="Bairro"></label><label>Cidade *<input name="cidade" required maxlength="80" placeholder="Cidade"></label><label>Estado (UF) *<select name="uf" required><option value="">Selecione</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option selected>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select></label></div>` : ""}<div class="form-error hidden" id="registration-note"></div><div class="modal-actions"><button class="btn btn-primary" type="submit">Validar cadastro</button></div></form></div></section>`
+      `<section class="panel choice-panel"><p class="eyebrow choice-label">TIPO DE CADASTRO</p><button class="choice-option ${state.donorType === "donor" ? "active" : ""}" data-action="donor-type" data-value="donor"><span class="choice-icon">♢</span><span><b>Novo doador</b><small>Dados pessoais e clínicos</small></span></button>${state.user?.is_admin ? `<button class="choice-option ${state.donorType === "staff" ? "active" : ""}" data-action="donor-type" data-value="staff"><span class="choice-icon">♙</span><span><b>Pessoa licenciada</b><small>Equipe profissional (sem login)</small></span></button>` : ""}<div class="privacy-note"><b>♧ &nbsp; Dados protegidos</b><p>As informações são armazenadas de acordo com as normas da LGPD.</p></div></section><section class="form-panel"><div class="form-panel-heading"><span class="choice-icon" style="background:var(--red-pale);color:var(--red)">♢</span><div><h2>${state.donorType === "donor" ? "Cadastro de doador" : "Cadastro de pessoa licenciada"}</h2><p>Preencha os campos obrigatórios indicados com *</p></div></div><div class="form-body"><h3>Informações pessoais</h3><form id="visual-registration-form"><div class="form-grid"><label>Nome completo *<input name="nome" required maxlength="120" placeholder="Digite o nome completo"></label>${state.donorType === "donor" ? `<label>CPF *<input name="cpf" data-mask="cpf" inputmode="numeric" maxlength="14" autocomplete="off" required placeholder="000.000.000-00"></label><label>Data de nascimento *<input name="data_nascimento" type="date" required></label>` : ""}<label>E-mail *<input name="email" type="email" required maxlength="254" placeholder="nome@exemplo.com"></label><label>Telefone *<input name="telefone" data-mask="phone" inputmode="tel" maxlength="15" required placeholder="(00) 00000-0000"></label>${state.donorType === "donor" ? `<label>Tipo sanguíneo *<select name="tipo_sanguineo" required><option value="">Selecione</option>${bloodTypes.map((t) => `<option>${t}</option>`).join("")}</select></label><label>Peso (kg) *<input name="peso_kg" type="number" min="1" max="500" step="0.1" placeholder="Ex.: 72" required></label><label class="span-2">Observações<textarea name="observacoes" rows="3" maxlength="2000" placeholder="Informações adicionais"></textarea></label>` : `<label>Função *<select name="cargo" required><option value="">Selecione</option><option>Enfermagem</option><option>Laboratório</option><option>Administração</option><option>Responsável técnico</option></select></label><label>Conselho profissional<input name="registro_profissional" maxlength="80" placeholder="Ex.: COREN, CRBM"></label><label class="span-2">Observações<textarea name="observacoes" rows="3" maxlength="2000"></textarea></label>`}</div>${state.donorType === "donor" ? `<h3 class="form-section-title">Endereço</h3><div class="form-grid"><label>CEP<input name="cep" data-mask="cep" inputmode="numeric" maxlength="9" placeholder="00000-000"></label><label>Rua / Avenida *<input name="logradouro" required maxlength="150" placeholder="Ex.: Rua da Aurora"></label><label>Número *<input name="numero" required maxlength="10" placeholder="Ex.: 123 ou S/N"></label><label>Complemento<input name="complemento" maxlength="80" placeholder="Apto, bloco, casa…"></label><label>Bairro *<input name="bairro" required maxlength="80" placeholder="Bairro"></label><label>Cidade *<input name="cidade" required maxlength="80" placeholder="Cidade"></label><label>Estado (UF) *<select name="uf" required><option value="">Selecione</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option selected>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select></label></div>` : ""}<div class="form-error hidden" id="registration-note"></div><div class="modal-actions"><button class="btn btn-primary" type="submit">Validar cadastro</button></div></form></div></section>`
     );
   }
   // Tela "Doadores": lista com os botões Revisado e Excluir.
@@ -740,7 +753,7 @@
   }
   function donorRows(donors) {
     if (!donors.length) return `<div class="empty-state">Nenhum doador cadastrado ainda.</div>`;
-    return `<div class="table-wrap"><table><thead><tr><th>Código</th><th>Nome</th><th>Tipo sanguíneo</th><th>Telefone</th><th>Cidade</th><th>Status</th>${can("doadores.editar") ? "<th>Ação</th>" : ""}</tr></thead><tbody>${donors.map((d) => `<tr><td><strong>${esc(d.codigo_ficticio)}</strong></td><td>${esc(d.nome)}${d.revisao_pendente ? ' <span class="pill amber" title="Cadastro sem atualização há mais de 1 ano">Atualizar cadastro</span>' : ""}</td><td><strong style="color:var(--red)">${esc(d.tipo_sanguineo || "—")}</strong></td><td>${esc(d.telefone || "—")}</td><td>${d.cidade ? esc(d.cidade + (d.uf ? "/" + d.uf : "")) : "—"}</td><td><span class="pill ${d.status === "ATIVO" ? "green" : "amber"}">${esc(d.status || "—")}</span></td>${can("doadores.editar") ? `<td class="row-actions">${d.revisao_pendente ? `<button class="table-action" data-action="review-donor" data-id="${esc(d.id)}">Revisado</button>` : ""}<button class="table-action danger" data-action="delete-donor" data-id="${esc(d.id)}">Excluir</button></td>` : ""}</tr>`).join("")}</tbody></table></div>`;
+    return `<div class="table-wrap"><table><thead><tr><th>Código</th><th>Nome</th><th>CPF</th><th>Tipo sanguíneo</th><th>Telefone</th><th>Cidade</th><th>Status</th>${can("doadores.editar") ? "<th>Ação</th>" : ""}</tr></thead><tbody>${donors.map((d) => `<tr><td><strong>${esc(d.codigo_ficticio)}</strong></td><td>${esc(d.nome)}${d.revisao_pendente ? ' <span class="pill amber" title="Cadastro sem atualização há mais de 1 ano">Atualizar cadastro</span>' : ""}</td><td class="cpf-cell" title="CPF parcialmente oculto (LGPD)">${esc(d.cpf_mascarado || "—")}</td><td><strong style="color:var(--red)">${esc(d.tipo_sanguineo || "—")}</strong></td><td>${esc(d.telefone || "—")}</td><td>${d.cidade ? esc(d.cidade + (d.uf ? "/" + d.uf : "")) : "—"}</td><td><span class="pill ${d.status === "ATIVO" ? "green" : "amber"}">${esc(d.status || "—")}</span></td>${can("doadores.editar") ? `<td class="row-actions">${d.revisao_pendente ? `<button class="table-action" data-action="review-donor" data-id="${esc(d.id)}">Revisado</button>` : ""}<button class="table-action danger" data-action="delete-donor" data-id="${esc(d.id)}">Excluir</button></td>` : ""}</tr>`).join("")}</tbody></table></div>`;
   }
   // Tela "Quadro de atenção": tipos sanguíneos com estoque baixo.
   function renderAlerts() {
@@ -823,6 +836,18 @@
       `<section class="panel"><div class="panel-heading"><div><h2>Notificações do sistema</h2><p>Alertas de estoque baixo, validade das bolsas e cadastros de doadores sem atualização há mais de 1 ano.</p></div></div><div class="form-body"><label class="switch-row"><span><b>Receber notificações</b><small id="notif-pref-status">${on ? "Ativadas: os alertas aparecem no sino do topo." : "Desativadas: nenhum alerta será exibido."}</small></span><input type="checkbox" id="notif-toggle" class="switch" ${on ? "checked" : ""}></label></div></section><section class="panel"><div class="panel-heading"><div><h2>Informações do sistema</h2><p>HemoFlow · Gestão de hemocentro</p></div></div><div class="form-body"><p><b>Usuário conectado:</b> ${esc(state.user?.nome || "Usuário")}</p><p><b>E-mail:</b> ${esc(state.user?.email || "—")}</p><p><b>Banco de dados:</b> MySQL (conectado)</p><p><b>Autenticação:</b> sessão HTTP</p></div></section>`
     );
   }
+  // ==========================================================================
+  // 15. SUPORTE
+  // ==========================================================================
+  // Tela "Suporte": formulário que envia a mensagem por e-mail para a equipe.
+  // A resposta chega no e-mail do usuário conectado.
+  function renderSupport() {
+    const kinds = ["Dúvida", "Problema no sistema", "Sugestão", "Acesso e senha", "Outro"];
+    return (
+      pageHeading("Suporte", "Fale com a equipe do HemoFlow: dúvidas, problemas ou sugestões.") +
+      `<section class="support-grid"><section class="panel"><div class="panel-heading"><div><h2>Enviar mensagem</h2><p>A resposta chega no seu e-mail: <b>${esc(state.user?.email || "—")}</b></p></div></div><div class="form-body"><form id="support-form"><div class="form-grid"><label>Tipo *<select name="categoria" required><option value="">Selecione</option>${kinds.map((k) => `<option>${k}</option>`).join("")}</select></label><label>Assunto *<input name="assunto" required minlength="3" maxlength="120" placeholder="Resumo em poucas palavras"></label><label class="span-2">Mensagem *<textarea name="mensagem" rows="6" required minlength="10" maxlength="3000" placeholder="Descreva o que aconteceu ou o que você precisa. Se for um erro, diga em qual tela e o que você estava fazendo."></textarea></label></div><div class="form-error hidden" id="support-note"></div><div class="modal-actions"><button class="btn btn-primary" type="submit">Enviar mensagem</button></div></form></div></section><section class="panel support-info"><div class="panel-heading"><div><h2>Antes de escrever</h2><p>Algumas respostas rápidas</p></div></div><div class="form-body"><p><b>Esqueci a senha</b><br>Na tela de login, use "Esqueceu sua senha?".</p><p><b>Não vejo um botão</b><br>Cada perfil vê só o que pode fazer. Peça ao administrador para conferir o seu perfil.</p><p><b>Sem internet</b><br>O estoque continua disponível para consulta; os cadastros voltam quando a conexão voltar.</p><p class="muted-note">Não envie senhas nem dados completos de doadores por mensagem.</p></div></section></section>`
+    );
+  }
   // Desenha a tela atual dentro de <section id="page-content">.
   function renderPage() {
     if (document.body.classList.contains("auth-required")) return;
@@ -869,6 +894,9 @@
       case "accessAccounts":
         html = renderAccessAccounts();
         break;
+      case "support":
+        html = renderSupport();
+        break;
       default:
         html = renderOverview();
     }
@@ -891,7 +919,7 @@
         const q = donorSearch.value.toLowerCase();
         $("#donor-table").innerHTML = donorRows(
           (state.donors || []).filter((d) =>
-            [d.nome, d.codigo_ficticio, d.email, d.telefone, d.tipo_sanguineo].some((v) =>
+            [d.nome, d.codigo_ficticio, d.email, d.telefone, d.tipo_sanguineo, d.cpf_mascarado].some((v) =>
               String(v || "")
                 .toLowerCase()
                 .includes(q),
@@ -910,6 +938,9 @@
         btn.disabled = true;
         try {
           const values = Object.fromEntries(new FormData(reg).entries());
+          if (state.donorType === "donor" && !validCpf(values.cpf)) {
+            throw new Error("CPF inválido: confira os números digitados.");
+          }
           const endpoint = state.donorType === "donor" ? "/api/donors" : "/api/professionals";
           if (state.donorType === "staff") {
             values.observacoes = values.observacoes || "";
@@ -924,6 +955,30 @@
           } else {
             toast("Profissional cadastrado com sucesso.", "success");
           }
+        } catch (err) {
+          note.textContent = err.message;
+          note.style.color = "var(--red)";
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    const support = $("#support-form");
+    if (support)
+      support.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const note = $("#support-note"),
+          btn = support.querySelector('button[type="submit"]');
+        note.classList.remove("hidden");
+        note.style.color = "";
+        note.textContent = "Enviando...";
+        btn.disabled = true;
+        try {
+          const values = Object.fromEntries(new FormData(support).entries());
+          const r = await api("/api/support", { method: "POST", body: JSON.stringify(values) });
+          note.textContent = r.mensagem;
+          note.style.color = "var(--green)";
+          support.reset();
+          toast(`Mensagem enviada. Protocolo ${r.protocolo}.`, "success");
         } catch (err) {
           note.textContent = err.message;
           note.style.color = "var(--red)";
@@ -1081,7 +1136,6 @@
     if (!document.body.classList.contains("auth-required")) refreshData();
   });
 
-
   // ==========================================================================
   // 11. APLICATIVO INSTALÁVEL (PWA)
   // ==========================================================================
@@ -1110,7 +1164,6 @@
   }
   if ("serviceWorker" in navigator)
     window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
-
 
   // ==========================================================================
   // 12. NOTIFICAÇÕES (SINO)

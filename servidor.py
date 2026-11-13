@@ -21,6 +21,7 @@ js/app.js. Configure as variáveis HEMOFLOW_* (ver .env.example) antes de inicia
         6.7 Notificações ........... alertas do sino, baixa e preferência
         6.8 Contas e profissionais . contas de acesso e cadastro de profissionais
         6.9 Arquivos das telas ..... HTML, CSS, JS e imagens da pasta static/
+        6.10 Suporte ............... mensagem da aba Suporte enviada por e-mail
    7. INSTALAÇÃO AUTOMÁTICA ........ cria as tabelas num banco novo (nuvem)
    8. INÍCIO ....................... main()
 
@@ -87,6 +88,12 @@ EMAIL_USER = os.environ.get("HEMOFLOW_EMAIL_USER", "")
 EMAIL_PASSWORD = os.environ.get("HEMOFLOW_EMAIL_PASSWORD", "").replace(" ", "")
 EMAIL_HOST = os.environ.get("HEMOFLOW_EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.environ.get("HEMOFLOW_EMAIL_PORT", "587"))
+# Caixa que recebe as mensagens da aba Suporte (padrão: a mesma conta que envia).
+SUPPORT_EMAIL = os.environ.get("HEMOFLOW_SUPPORT_EMAIL", "").strip() or EMAIL_USER
+SUPPORT_REQUESTS: dict[int, list[float]] = {}
+MAX_SUPPORT_REQUESTS = 5          # mensagens por usuário...
+SUPPORT_WINDOW = 60 * 60          # ...a cada 1 hora
+SUPPORT_CATEGORIES = ("Dúvida", "Problema no sistema", "Sugestão", "Acesso e senha", "Outro")
 SESSION_COOKIE = "hemoflow_session"
 SESSION_TTL = 8 * 60 * 60
 SESSIONS: dict[str, dict] = {}
@@ -371,6 +378,26 @@ def send_recovery_email(to_email: str, reset_url: str, name: str = ""):
         server.send_message(message)
 
 
+def send_support_email(protocol: str, category: str, subject: str, text: str, name: str, email: str):
+    """Aba Suporte: envia a mensagem do usuário para a caixa de suporte (SUPPORT_EMAIL).
+    O "Responder" do Gmail vai direto para o e-mail de quem escreveu (Reply-To)."""
+    message = EmailMessage()
+    message["Subject"] = f"[Suporte HemoFlow] {protocol} · {category} · {subject}"
+    message["From"] = f"HemoFlow <{EMAIL_USER}>"
+    message["To"] = SUPPORT_EMAIL
+    message["Reply-To"] = email
+    message.set_content(
+        f"Protocolo: {protocol}\n"
+        f"Enviado por: {name} <{email}>\n"
+        f"Categoria: {category}\n"
+        f"Assunto: {subject}\n\n"
+        f"{text}\n\n"
+        "Para responder, use o botão Responder: a resposta vai para o e-mail de quem enviou."
+    )
+    with smtp_connection() as server:
+        server.send_message(message)
+
+
 
 # ============================================================================
 # 5. ERROS E VALIDAÇÕES
@@ -404,6 +431,25 @@ def valid_email(email: str) -> bool:
     return 3 <= len(email) <= 254 and EMAIL_RE.fullmatch(email) is not None
 
 
+def valid_cpf(cpf: str) -> bool:
+    """Confere os dois dígitos verificadores do CPF (só números, 11 dígitos).
+    Sequências repetidas (000.000.000-00, 111...) passam na conta, mas não existem."""
+    if len(cpf) != 11 or not cpf.isdigit() or cpf == cpf[0] * 11:
+        return False
+    for size in (9, 10):
+        total = sum(int(cpf[i]) * (size + 1 - i) for i in range(size))
+        if (total * 10) % 11 % 10 != int(cpf[size]):
+            return False
+    return True
+
+
+def mask_cpf(cpf) -> str:
+    """LGPD: a lista mostra só o meio do CPF (***.456.789-**). O número completo não sai do servidor."""
+    if not cpf or len(cpf) != 11:
+        return ""
+    return f"***.{cpf[3:6]}.{cpf[6:9]}-**"
+
+
 def duplicate_message(exc: mysql.connector.IntegrityError) -> str:
     """Traduz violações de UNIQUE do MySQL para mensagens compreensíveis."""
     text = str(getattr(exc, "msg", exc))
@@ -411,6 +457,8 @@ def duplicate_message(exc: mysql.connector.IntegrityError) -> str:
         return "Já existe uma conta cadastrada com esse e-mail."
     if "uq_doadores_email" in text:
         return "Já existe um doador cadastrado com esse e-mail."
+    if "uq_doadores_cpf" in text:
+        return "Já existe um doador cadastrado com esse CPF."
     if "uq_profissionais_email" in text:
         return "Já existe um profissional cadastrado com esse e-mail."
     if "uq_profissionais_registro" in text:
@@ -433,7 +481,9 @@ MIGRATION_001 = {
     ("profissionais", "uq_profissionais_email"): "index",
 }
 MIGRATION_002 = {("doadores", column): "column" for column in ADDRESS_FIELDS}
-SCHEMA_KINDS = {**MIGRATION_001, **MIGRATION_002}
+# Migração 004 (scripts/migracao_004_cpf_doador.py): CPF do doador, único.
+MIGRATION_004 = {("doadores", "cpf"): "column", ("doadores", "uq_doadores_cpf"): "index"}
+SCHEMA_KINDS = {**MIGRATION_001, **MIGRATION_002, **MIGRATION_004}
 _SCHEMA_OK: set = set()
 
 
@@ -463,6 +513,14 @@ def pending_migration_002() -> list[str]:
 
 def donor_address_ready() -> bool:
     return not pending_migration_002()
+
+
+def pending_migration_004() -> list[str]:
+    return [f"{table}.{name}" for table, name in MIGRATION_004 if not schema_has(table, name)]
+
+
+def donor_cpf_ready() -> bool:
+    return not pending_migration_004()
 
 
 def pending_migration_001() -> list[str]:
@@ -697,6 +755,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/donors":
                 self.require_permission(actor_id, "doadores.criar")
                 return self.create_donor(self.read_json(), actor_id)
+            if path == "/api/support":
+                # Aba Suporte: qualquer usuário logado pode escrever.
+                return self.send_support(self.read_json(), record)
             if path == "/api/notifications/read":
                 return self.mark_notifications_read(self.read_json(), actor_id)
             if path == "/api/notifications/preferences":
@@ -1240,9 +1301,11 @@ class Handler(BaseHTTPRequestHandler):
     def list_donors(self, query):
         search = query.get("q", [""])[0].strip()[:100]
         address = (", " + ", ".join(ADDRESS_FIELDS)) if donor_address_ready() else ""
+        has_cpf = donor_cpf_ready()
+        cpf_col = ", cpf" if has_cpf else ""
         sql = f"""
             SELECT id, nome, data_nascimento, email, telefone, codigo_ficticio,
-                   status, observacoes, tipo_sanguineo, peso_kg, criado_em, atualizado_em{address},
+                   status, observacoes, tipo_sanguineo, peso_kg, criado_em, atualizado_em{address}{cpf_col},
                    (status = 'ATIVO' AND atualizado_em < DATE_SUB(NOW(), INTERVAL %s MONTH)) AS revisao_pendente
             FROM doadores
         """
@@ -1250,6 +1313,9 @@ class Handler(BaseHTTPRequestHandler):
         if search:
             sql += " WHERE nome LIKE %s OR codigo_ficticio LIKE %s OR email LIKE %s"
             params.extend([f"%{search}%"] * 3)
+            if has_cpf and len(only_digits(search)) == 11:
+                sql += " OR cpf = %s"  # busca pelo CPF completo (a lista nunca mostra o número inteiro)
+                params.append(only_digits(search))
         sql += " ORDER BY id DESC LIMIT 500"
         with connect_db() as db:
             cur = db.cursor(dictionary=True)
@@ -1261,6 +1327,7 @@ class Handler(BaseHTTPRequestHandler):
             row["criado_em"] = serialize_date(row.get("criado_em"))
             row["atualizado_em"] = serialize_date(row.get("atualizado_em"))
             row["revisao_pendente"] = bool(row.get("revisao_pendente"))
+            row["cpf_mascarado"] = mask_cpf(row.pop("cpf", None))
         self.send_json(rows)
 
     def review_donor(self, donor_id, actor_id):
@@ -1465,6 +1532,7 @@ class Handler(BaseHTTPRequestHandler):
     def create_donor(self, data, actor_id):
         name = str(data.get("nome", "")).strip()
         email = str(data.get("email", "")).strip().lower()
+        cpf = only_digits(str(data.get("cpf", "")))
         phone = str(data.get("telefone", "")).strip()
         birth_text = data.get("data_nascimento", "")
         blood = str(data.get("tipo_sanguineo", "")).strip().upper()
@@ -1474,6 +1542,10 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Informe o nome completo (até 120 caracteres).")
         if not valid_email(email):
             raise ApiError("Informe um e-mail válido.")
+        if not cpf:
+            raise ApiError("Informe o CPF.")
+        if not valid_cpf(cpf):
+            raise ApiError("CPF inválido: confira os números digitados.")
         if not phone:
             raise ApiError("Informe o telefone.")
         try:
@@ -1510,12 +1582,16 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError("Informe o peso em kg.")
         if not 1 <= weight <= 500:
             raise ApiError("O peso deve estar entre 1 e 500 kg.")
-        # Código fictício gerado pelo sistema; o CPF digitado no protótipo não é armazenado.
+        # Código interno do doador, gerado pelo sistema.
         code = "DOA-" + uuid.uuid4().hex[:10].upper()
         if not donor_address_ready():
             raise ApiError(
                 "O banco ainda não guarda o endereço dos doadores. Um administrador do MySQL "
                 "precisa executar scripts/migracao_002_endereco_doador.py.", 503)
+        if not donor_cpf_ready():
+            raise ApiError(
+                "O banco ainda não guarda o CPF dos doadores. Um administrador do MySQL "
+                "precisa executar scripts/migracao_004_cpf_doador.py.", 503)
         conn = connect_db()
         try:
             cur = conn.cursor()
@@ -1526,13 +1602,17 @@ class Handler(BaseHTTPRequestHandler):
             cur.execute("SELECT id FROM doadores WHERE email=%s LIMIT 1", (email,))
             if cur.fetchone():
                 raise ApiError("Já existe um doador cadastrado com esse e-mail.", 409)
+            # Mesmo cuidado para o CPF: a garantia final é o UNIQUE uq_doadores_cpf (migração 004).
+            cur.execute("SELECT id FROM doadores WHERE cpf=%s LIMIT 1", (cpf,))
+            if cur.fetchone():
+                raise ApiError("Já existe um doador cadastrado com esse CPF.", 409)
             cur.execute("""
                 INSERT INTO doadores
-                (nome, data_nascimento, email, telefone, codigo_ficticio, status,
+                (nome, cpf, data_nascimento, email, telefone, codigo_ficticio, status,
                  observacoes, tipo_sanguineo, peso_kg,
                  cep, logradouro, numero, complemento, bairro, cidade, uf)
-                VALUES (%s,%s,%s,%s,%s,'ATIVO',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (name, birth, email, phone, code, note, blood, weight,
+                VALUES (%s,%s,%s,%s,%s,%s,'ATIVO',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (name, cpf, birth, email, phone, code, note, blood, weight,
                   *[address[column] for column in ADDRESS_FIELDS]))
             donor_id = cur.lastrowid
             cur.execute("""
@@ -1549,6 +1629,46 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
         self.send_json({"ok": True, "id": donor_id, "codigo_ficticio": code,
                         "mensagem": "Doador cadastrado com sucesso."}, 201)
+
+    # ========================================================================
+    # 6.10 Suporte (aba "Suporte": mensagem por e-mail para a equipe)
+    # ========================================================================
+    def send_support(self, data, record):
+        category = str(data.get("categoria", "")).strip()
+        subject = " ".join(str(data.get("assunto", "")).split())
+        text = str(data.get("mensagem", "")).strip()
+        if category not in SUPPORT_CATEGORIES:
+            raise ApiError("Selecione o tipo da mensagem.")
+        if not 3 <= len(subject) <= 120:
+            raise ApiError("Escreva um assunto (de 3 a 120 caracteres).")
+        if not 10 <= len(text) <= 3000:
+            raise ApiError("Escreva a mensagem (de 10 a 3000 caracteres).")
+        if not EMAIL_USER or not EMAIL_PASSWORD or not SUPPORT_EMAIL:
+            raise ApiError("O envio de mensagens ainda não foi configurado. Avise o administrador.", 503)
+        # Limite por usuário: evita que o sistema seja usado para disparar e-mails em massa.
+        now = time.time()
+        recent = [t for t in SUPPORT_REQUESTS.get(record["id"], []) if now - t < SUPPORT_WINDOW]
+        if len(recent) >= MAX_SUPPORT_REQUESTS:
+            raise ApiError("Você já enviou várias mensagens na última hora. Aguarde um pouco e tente de novo.", 429)
+        protocol = "SUP-" + datetime.now(TZ).strftime("%Y%m%d") + "-" + secrets.token_hex(2).upper()
+        try:
+            send_support_email(protocol, category, subject, text, record["nome"], record["email"])
+        except (OSError, smtplib.SMTPException) as exc:
+            print("Falha ao enviar mensagem de suporte:", type(exc).__name__, exc)
+            raise ApiError("Não foi possível enviar a mensagem agora. Tente novamente em alguns minutos.", 502)
+        recent.append(now)
+        SUPPORT_REQUESTS[record["id"]] = recent
+        with connect_db() as db:
+            cur = db.cursor()
+            cur.execute("""
+                INSERT INTO historico_auditoria
+                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
+                VALUES (%s,'ENVIAR','suporte','mensagem',%s,%s)
+            """, (record["id"], protocol, json.dumps({"categoria": category, "assunto": subject})))
+            db.commit()
+            cur.close()
+        self.send_json({"ok": True, "protocolo": protocol,
+                        "mensagem": f"Mensagem enviada! Protocolo {protocol}. A resposta chegará no seu e-mail."})
 
     def delete_donor(self, donor_id, actor_id):
         """Exclui o cadastro do doador. Se ele já tiver doações ou agendamentos
@@ -1873,6 +1993,10 @@ def main():
         if pending:
             print("AVISO: migração 002 (endereço do doador) pendente:", ", ".join(pending))
             print("  Execute: python scripts/migracao_002_endereco_doador.py  (com usuário administrativo)")
+        pending = pending_migration_004()
+        if pending:
+            print("AVISO: migração 004 (CPF do doador) pendente:", ", ".join(pending))
+            print("  Execute: python scripts/migracao_004_cpf_doador.py  (com usuário administrativo)")
         server = HemoFlowServer((HOST, PORT), Handler)
     except OSError as exc:
         print(f"Não foi possível usar a porta {PORT}: {exc}")
