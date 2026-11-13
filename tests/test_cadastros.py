@@ -1,4 +1,4 @@
-"""Testes dos cadastros do app_mysql.py (doadores e profissionais).
+"""Testes dos cadastros do servidor.py (doadores e profissionais).
 
 Usam um banco SIMULADO (FakeDB) no lugar do MySQL: verificam as regras do backend
 (validação, bloqueio de e-mail duplicado, tradução de erros do MySQL, permissão
@@ -6,7 +6,7 @@ de administrador e aviso de migração pendente) sem precisar de senha nem tocar
 no banco real. O comportamento do MySQL em si (UNIQUE de verdade) é coberto
 pelos testes de integração da Etapa 4, contra um banco de teste.
 
-Executar:  python -m unittest tests.test_cadastros_mysql -v
+Executar:  python -m unittest tests.test_cadastros -v
 """
 import json
 import threading
@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 
 import mysql.connector
 
-import app_mysql
+import servidor
 
 
 class FakeCursor:
@@ -119,7 +119,7 @@ PROFESSIONAL = {
 class CadastrosMySQLTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), app_mysql.Handler)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), servidor.Handler)
         cls.server.daemon_threads = True
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
@@ -133,16 +133,16 @@ class CadastrosMySQLTests(unittest.TestCase):
     def setUp(self):
         self.db = FakeDB()
         self.is_admin = True
-        app_mysql._SCHEMA_OK.clear()
-        app_mysql.SESSIONS.clear()
-        app_mysql.SESSIONS["token-teste"] = {
+        servidor._SCHEMA_OK.clear()
+        servidor.SESSIONS.clear()
+        servidor.SESSIONS["token-teste"] = {
             "id": 1, "nome": "Admin Teste", "email": "admin@exemplo.com",
             "is_admin": True, "expires": 10**12,
         }
         patches = [
-            mock.patch.object(app_mysql, "connect_db", lambda: self.db),
-            mock.patch.object(app_mysql.Handler, "is_admin_profile", lambda _h, _id: self.is_admin),
-            mock.patch.object(app_mysql.Handler, "require_permission", lambda _h, _id, _code: None),
+            mock.patch.object(servidor, "connect_db", lambda: self.db),
+            mock.patch.object(servidor.Handler, "is_admin_profile", lambda _h, _id: self.is_admin),
+            mock.patch.object(servidor.Handler, "require_permission", lambda _h, _id, _code: None),
         ]
         for p in patches:
             p.start()
@@ -276,7 +276,7 @@ class CadastrosMySQLTests(unittest.TestCase):
         self.assertEqual(self.db.inserts("profissionais"), [])
 
     def test_sem_sessao_retorna_401(self):
-        app_mysql.SESSIONS.clear()
+        servidor.SESSIONS.clear()
         status, _ = self.post("/api/professionals", PROFESSIONAL)
         self.assertEqual(status, 401)
 
@@ -303,24 +303,24 @@ class CadastrosMySQLTests(unittest.TestCase):
 
     def test_excluir_doador_sem_permissao(self):
         def deny(_h, _id, _code):
-            raise app_mysql.ApiError("Você não tem permissão para realizar esta operação.", 403)
-        with mock.patch.object(app_mysql.Handler, "require_permission", deny):
+            raise servidor.ApiError("Você não tem permissão para realizar esta operação.", 403)
+        with mock.patch.object(servidor.Handler, "require_permission", deny):
             status, _ = self.delete("/api/donors/5")
         self.assertEqual(status, 403)
         self.assertFalse(any(s.startswith("DELETE") for s, _ in self.db.executed))
 
     def test_excluir_doador_sem_login(self):
-        app_mysql.SESSIONS.clear()
+        servidor.SESSIONS.clear()
         status, _ = self.delete("/api/donors/5")
         self.assertEqual(status, 401)
 
     # ---------- verificação de migração ----------
     def test_migracao_pendente_listada(self):
         self.db.schema_applied = False
-        self.assertEqual(app_mysql.pending_migration_001(), [
+        self.assertEqual(servidor.pending_migration_001(), [
             "doadores.uq_doadores_email", "profissionais.email", "profissionais.uq_profissionais_email"])
         self.db.schema_applied = True
-        self.assertEqual(app_mysql.pending_migration_001(), [])
+        self.assertEqual(servidor.pending_migration_001(), [])
 
 
 if __name__ == "__main__":

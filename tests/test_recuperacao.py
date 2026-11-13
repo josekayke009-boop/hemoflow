@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-import app_mysql
+import servidor
 
 
 class FakeCursor:
@@ -89,7 +89,7 @@ class FakeDB:
 class RecoveryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), app_mysql.Handler)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), servidor.Handler)
         cls.server.daemon_threads = True
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.server.server_port}"
@@ -102,13 +102,13 @@ class RecoveryTests(unittest.TestCase):
     def setUp(self):
         self.db = FakeDB()
         self.sent = []
-        app_mysql.RESET_REQUESTS.clear()
+        servidor.RESET_REQUESTS.clear()
         for p in [
-            mock.patch.object(app_mysql, "connect_db", lambda: self.db),
-            mock.patch.object(app_mysql, "EMAIL_USER", "hemoflow.envio@gmail.com"),
-            mock.patch.object(app_mysql, "EMAIL_PASSWORD", "senhadeapp"),
-            mock.patch.object(app_mysql, "PUBLIC_URL", "https://hemoflow.exemplo.com"),
-            mock.patch.object(app_mysql, "send_recovery_email",
+            mock.patch.object(servidor, "connect_db", lambda: self.db),
+            mock.patch.object(servidor, "EMAIL_USER", "hemoflow.envio@gmail.com"),
+            mock.patch.object(servidor, "EMAIL_PASSWORD", "senhadeapp"),
+            mock.patch.object(servidor, "PUBLIC_URL", "https://hemoflow.exemplo.com"),
+            mock.patch.object(servidor, "send_recovery_email",
                               lambda to, url, name="": self.sent.append((to, url, name))),
         ]:
             p.start()
@@ -152,20 +152,20 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.sent, [])
 
     def test_limite_de_pedidos_por_ip(self):
-        for _ in range(app_mysql.MAX_RESET_REQUESTS):
+        for _ in range(servidor.MAX_RESET_REQUESTS):
             self.assertEqual(self.request_link("ninguem@exemplo.com")[0], 200)
         status, data = self.request_link("ninguem@exemplo.com")
         self.assertEqual(status, 429)
 
     def test_sem_gmail_configurado(self):
-        with mock.patch.object(app_mysql, "EMAIL_PASSWORD", ""):
+        with mock.patch.object(servidor, "EMAIL_PASSWORD", ""):
             status, data = self.request_link()
         self.assertEqual(status, 503)
 
     def test_falha_no_gmail_mesma_resposta_e_link_invalidado(self):
         def broken(*_a, **_k):
             raise OSError("sem internet")
-        with mock.patch.object(app_mysql, "send_recovery_email", broken):
+        with mock.patch.object(servidor, "send_recovery_email", broken):
             status, data = self.request_link()
         self.assertEqual(status, 200)
         self.assertTrue(any(s.startswith("UPDATE recuperacao_senhas SET usado_em=NOW() WHERE token_hash")
@@ -176,7 +176,7 @@ class RecoveryTests(unittest.TestCase):
         token = parse_qs(urlparse(self.sent[0][1]).query)["reset_token"][0]
         status, data = self.post("/api/reset-password", {"token": token, "senha": "NovaSenha2026"})
         self.assertEqual((status, data["mensagem"]), (200, "Senha alterada. Você já pode entrar com a nova senha."))
-        self.assertTrue(app_mysql.verify_password("NovaSenha2026", self.db.password_hash))
+        self.assertTrue(servidor.verify_password("NovaSenha2026", self.db.password_hash))
         status, data = self.post("/api/reset-password", {"token": token, "senha": "OutraSenha2026"})
         self.assertEqual((status, data["erro"]), (400, "Link de recuperação inválido ou expirado."))
 
@@ -203,11 +203,11 @@ class RecoveryTests(unittest.TestCase):
             def send_message(self, message):
                 captured["msg"] = message
 
-        with mock.patch.object(app_mysql, "smtp_connection", lambda: FakeSMTP()):
+        with mock.patch.object(servidor, "smtp_connection", lambda: FakeSMTP()):
             mock.patch.stopall()  # usa o send_recovery_email real
-            with mock.patch.object(app_mysql, "EMAIL_USER", "hemoflow.envio@gmail.com"), \
-                    mock.patch.object(app_mysql, "EMAIL_PASSWORD", "senhadeapp"):
-                app_mysql.send_recovery_email("ana@exemplo.com", "https://h.exemplo.com/?reset_token=abc", "Ana Souza")
+            with mock.patch.object(servidor, "EMAIL_USER", "hemoflow.envio@gmail.com"), \
+                    mock.patch.object(servidor, "EMAIL_PASSWORD", "senhadeapp"):
+                servidor.send_recovery_email("ana@exemplo.com", "https://h.exemplo.com/?reset_token=abc", "Ana Souza")
         msg = captured["msg"]
         self.assertEqual(msg["To"], "ana@exemplo.com")
         self.assertIn("HemoFlow", msg["From"])

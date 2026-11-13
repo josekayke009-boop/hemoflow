@@ -10,7 +10,7 @@ from unittest import mock
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-import app_mysql
+import servidor
 
 
 class FakeCursor:
@@ -81,7 +81,7 @@ class FakeDB:
 class NotificationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), app_mysql.Handler)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), servidor.Handler)
         cls.server.daemon_threads = True
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.server.server_port}"
@@ -94,11 +94,11 @@ class NotificationTests(unittest.TestCase):
     def setUp(self):
         self.db = FakeDB()
         self.perms = {"estoque.consultar", "doadores.consultar", "doadores.editar"}
-        app_mysql.SESSIONS.clear()
-        app_mysql.SESSIONS["tok"] = {"id": 4, "nome": "T", "email": "t@exemplo.com", "is_admin": False, "expires": 10**12}
+        servidor.SESSIONS.clear()
+        servidor.SESSIONS["tok"] = {"id": 4, "nome": "T", "email": "t@exemplo.com", "is_admin": False, "expires": 10**12}
         for p in [
-            mock.patch.object(app_mysql, "connect_db", lambda: self.db),
-            mock.patch.object(app_mysql.Handler, "has_permission", lambda _h, _id, code: code in self.perms),
+            mock.patch.object(servidor, "connect_db", lambda: self.db),
+            mock.patch.object(servidor.Handler, "has_permission", lambda _h, _id, code: code in self.perms),
         ]:
             p.start()
             self.addCleanup(p.stop)
@@ -194,7 +194,7 @@ class NotificationTests(unittest.TestCase):
         self.assertEqual(insert[0], "notificacoes.usuario.4")
 
     def test_notificacoes_exigem_login(self):
-        app_mysql.SESSIONS.clear()
+        servidor.SESSIONS.clear()
         status, _ = self.call("/api/notifications")
         self.assertEqual(status, 401)
 

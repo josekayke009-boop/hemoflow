@@ -1,10 +1,10 @@
-"""Testes da configuração de produção do app_mysql.py.
+"""Testes da configuração de produção do servidor.py.
 
 Banco SIMULADO (sem senha, sem tocar no MySQL real). Cobrem: cabeçalhos de
 segurança, cookie Secure, IP real atrás de proxy, verificação de saúde (/healthz),
 fuso horário, opções de TLS do MySQL e bloqueio de conta por senha errada.
 
-Executar:  python -m unittest tests.test_producao -v
+Executar:  python -m unittest tests.test_seguranca -v
 """
 import json
 import threading
@@ -17,7 +17,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-import app_mysql
+import servidor
 
 
 class FakeCursor:
@@ -47,7 +47,7 @@ class FakeDB:
 
     def cursor(self, dictionary=False):
         if self.fail:
-            raise app_mysql.MySQLError("banco fora do ar")
+            raise servidor.MySQLError("banco fora do ar")
         return FakeCursor(self, dictionary)
 
     def commit(self):
@@ -81,7 +81,7 @@ class FakeDB:
 class ServerTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), app_mysql.Handler)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), servidor.Handler)
         cls.server.daemon_threads = True
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.server.server_port}"
@@ -93,11 +93,11 @@ class ServerTestCase(unittest.TestCase):
 
     def setUp(self):
         self.db = FakeDB()
-        app_mysql.LOGIN_ATTEMPTS.clear()
+        servidor.LOGIN_ATTEMPTS.clear()
         for p in [
-            mock.patch.object(app_mysql, "connect_db", lambda: self.db),
-            mock.patch.object(app_mysql.Handler, "is_admin_profile", lambda _h, _id: False),
-            mock.patch.object(app_mysql.Handler, "access_profile", lambda _h, _id: (["CONSULTA"], ["painel.consultar"])),
+            mock.patch.object(servidor, "connect_db", lambda: self.db),
+            mock.patch.object(servidor.Handler, "is_admin_profile", lambda _h, _id: False),
+            mock.patch.object(servidor.Handler, "access_profile", lambda _h, _id: (["CONSULTA"], ["painel.consultar"])),
         ]:
             p.start()
             self.addCleanup(p.stop)
@@ -116,7 +116,7 @@ class ServerTestCase(unittest.TestCase):
 
 class HeadersAndHealthTests(ServerTestCase):
     def test_cabecalhos_de_seguranca_na_api_e_na_interface(self):
-        for path in ("/api/session", "/", "/app.js"):
+        for path in ("/api/session", "/", "/js/app.js"):
             status, headers, _ = self.request(path)
             self.assertEqual(status, 200, path)
             self.assertEqual(headers["X-Frame-Options"], "DENY", path)
@@ -138,7 +138,7 @@ class HeadersAndHealthTests(ServerTestCase):
         self.assertIn('url.pathname.startsWith("/api/")', body.decode())   # API nunca vai para o cache
         status, _, body = self.request("/")
         self.assertIn(b'rel="manifest"', body)
-        status, headers, _ = self.request("/login/h-simbolo-3d.webp")
+        status, headers, _ = self.request("/img/login/h-simbolo-3d.webp")
         self.assertEqual((status, headers["Content-Type"]), (200, "image/webp"))
 
     def test_healthz_ok_e_banco_fora(self):
@@ -153,7 +153,7 @@ class HeadersAndHealthTests(ServerTestCase):
 class LoginLockoutTests(ServerTestCase):
     def user(self, bloqueada=0):
         return {"id": 9, "nome": "Teste", "email": "t@exemplo.com", "status": "ATIVO",
-                "senha_hash": app_mysql.password_hash("SenhaCorreta123"), "bloqueada": bloqueada}
+                "senha_hash": servidor.password_hash("SenhaCorreta123"), "bloqueada": bloqueada}
 
     def test_senha_errada_conta_tentativa_na_conta(self):
         self.db.user = self.user()
@@ -191,38 +191,38 @@ class ConfigTests(unittest.TestCase):
         return SimpleNamespace(headers=headers, client_address=(ip, 1234))
 
     def test_ip_local_ignora_x_forwarded_for(self):
-        with mock.patch.object(app_mysql, "TRUST_PROXY", False):
-            self.assertEqual(app_mysql.Handler.client_ip(self.handler("1.2.3.4")), "10.0.0.5")
+        with mock.patch.object(servidor, "TRUST_PROXY", False):
+            self.assertEqual(servidor.Handler.client_ip(self.handler("1.2.3.4")), "10.0.0.5")
 
     def test_ip_atras_do_proxy_usa_o_valor_do_proxy(self):
-        with mock.patch.object(app_mysql, "TRUST_PROXY", True), mock.patch.object(app_mysql, "PROXY_HOPS", 1):
+        with mock.patch.object(servidor, "TRUST_PROXY", True), mock.patch.object(servidor, "PROXY_HOPS", 1):
             # "6.6.6.6" foi inventado pelo cliente; "1.2.3.4" foi acrescentado pelo proxy.
-            self.assertEqual(app_mysql.Handler.client_ip(self.handler("6.6.6.6, 1.2.3.4")), "1.2.3.4")
-            self.assertEqual(app_mysql.Handler.client_ip(self.handler()), "10.0.0.5")
+            self.assertEqual(servidor.Handler.client_ip(self.handler("6.6.6.6, 1.2.3.4")), "1.2.3.4")
+            self.assertEqual(servidor.Handler.client_ip(self.handler()), "10.0.0.5")
 
     def test_cookie_secure_em_producao(self):
-        with mock.patch.object(app_mysql, "COOKIE_SECURE", True):
-            self.assertTrue(app_mysql.session_cookie("abc", 10).endswith("; Secure"))
-        with mock.patch.object(app_mysql, "COOKIE_SECURE", False):
-            self.assertNotIn("Secure", app_mysql.session_cookie("abc", 10))
+        with mock.patch.object(servidor, "COOKIE_SECURE", True):
+            self.assertTrue(servidor.session_cookie("abc", 10).endswith("; Secure"))
+        with mock.patch.object(servidor, "COOKIE_SECURE", False):
+            self.assertNotIn("Secure", servidor.session_cookie("abc", 10))
 
     def test_hoje_no_fuso_de_recife(self):
-        self.assertEqual(app_mysql.hoje(), datetime.now(ZoneInfo("America/Recife")).date())
-        self.assertEqual(app_mysql._utc_offset(), "-03:00")
+        self.assertEqual(servidor.hoje(), datetime.now(ZoneInfo("America/Recife")).date())
+        self.assertEqual(servidor._utc_offset(), "-03:00")
 
     def test_opcoes_tls_do_mysql(self):
-        with mock.patch.object(app_mysql, "DB_SSL", "disabled"):
-            self.assertTrue(app_mysql.db_config()["ssl_disabled"])
-        with mock.patch.object(app_mysql, "DB_SSL", "required"):
-            cfg = app_mysql.db_config()
+        with mock.patch.object(servidor, "DB_SSL", "disabled"):
+            self.assertTrue(servidor.db_config()["ssl_disabled"])
+        with mock.patch.object(servidor, "DB_SSL", "required"):
+            cfg = servidor.db_config()
             self.assertFalse(cfg["ssl_disabled"])
             self.assertNotIn("ssl_verify_cert", cfg)
-        with mock.patch.object(app_mysql, "DB_SSL", "verify"), mock.patch.object(app_mysql, "DB_SSL_CA", ""), \
+        with mock.patch.object(servidor, "DB_SSL", "verify"), mock.patch.object(servidor, "DB_SSL_CA", ""), \
                 mock.patch.dict("os.environ", {"HEMOFLOW_DB_SSL_CA_PEM": ""}):
             with self.assertRaises(RuntimeError):
-                app_mysql.db_config()
-        with mock.patch.object(app_mysql, "DB_SSL", "verify"), mock.patch.object(app_mysql, "DB_SSL_CA", "ca.pem"):
-            cfg = app_mysql.db_config()
+                servidor.db_config()
+        with mock.patch.object(servidor, "DB_SSL", "verify"), mock.patch.object(servidor, "DB_SSL_CA", "ca.pem"):
+            cfg = servidor.db_config()
             self.assertTrue(cfg["ssl_verify_cert"] and cfg["ssl_verify_identity"])
 
 
