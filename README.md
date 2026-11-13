@@ -7,6 +7,10 @@ Sistema web acadêmico de gerenciamento de banco de sangue: doadores, profission
 **Sistema no ar:** https://hemoflow-production.up.railway.app  
 **Código:** https://github.com/josekayke009-boop/hemoflow
 
+<img src="docs/qrcode/qrcode-hemoflow.png" alt="QR Code para abrir o HemoFlow no celular" width="180">
+
+Aponte a câmera do celular para abrir o HemoFlow. Para instalar como aplicativo: Android (Chrome) → menu → **Instalar aplicativo**; iPhone (Safari) → Compartilhar → **Adicionar à Tela de Início**.
+
 ## Arquitetura
 
 - **Backend:** Python (biblioteca padrão `http.server`) em `app_mysql.py`
