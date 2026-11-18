@@ -9,6 +9,7 @@ import {
   api, $, $$, esc, cru, html, aviso, erro, janela, fecharJanela, aoEnviar, dataBR, hora, diaSemana, hojeISO,
   NIVEL_TEXTO, TIPOS, TIPO_PARCEIRO, icone, termometro, abrirAvisos, blocoAcessibilidade, ligarAcessibilidade, opcoesUF,
 } from "./nucleo.js";
+import { telaAjuda, ligarAjuda } from "./ajuda.js";
 
 let raiz, ctxApp, usuario;
 let aba = "inicio";
@@ -25,6 +26,7 @@ export async function montar(elemento, u, ctx) {
     <header class="topo">
       <img src="/img/hemoflow-icone.png" alt="" width="36" height="36" />
       <span class="marca-nome">HemoFlow</span><span class="espaco"></span>
+      <button class="icone-btn" id="d-ajuda" aria-label="Ajuda">${icone("ajuda")}</button>
       <button class="icone-btn" id="d-sino" aria-label="Avisos">${icone("sino")}<span class="bolinha hidden" id="d-bolinha"></span></button>
     </header>
     <main class="app-doador" id="d-conteudo" tabindex="-1"></main>
@@ -35,6 +37,7 @@ export async function montar(elemento, u, ctx) {
     </nav>`;
   $$(".menu-inferior button", raiz).forEach((b) => b.addEventListener("click", () => irPara(b.dataset.aba)));
   $("#d-sino", raiz).addEventListener("click", () => abrirAvisos(marcarSino));
+  $("#d-ajuda", raiz).addEventListener("click", () => irPara("ajuda"));
   $("#d-conteudo", raiz).addEventListener("click", cliques);
   await irPara("inicio");
 }
@@ -57,9 +60,10 @@ async function irPara(nova, extra) {
   area.innerHTML = '<p class="vazio">Carregando…</p>';
   scrollTo(0, 0);
   try {
-    const telas = { inicio, agendar, vantagens, perfil, direitos, grupos, historico, dados, acessibilidade };
+    const telas = { inicio, agendar, vantagens, perfil, direitos, grupos, historico, dados, acessibilidade, ajuda };
     area.innerHTML = String(await telas[nova](extra));
     if (nova === "acessibilidade") ligarAcessibilidade(area);
+    if (nova === "ajuda") ligarAjuda(area);
     ligarFormularios(area);
   } catch (e) {
     area.innerHTML = `<div class="cartao erro">${esc(e.message)}</div>`;
@@ -279,6 +283,7 @@ async function perfil() {
       <button type="button" data-ir="historico">📋 Histórico de doações</button>
       <button type="button" data-ir="dados">✏️ Meus dados e avisos</button>
       <button type="button" data-ir="acessibilidade">🔠 Letra, contraste e tema</button>
+      <button type="button" data-ir="ajuda">❓ Ajuda e fale conosco</button>
     </section>
     <button type="button" class="btn btn-claro cheio" id="d-sair">${icone("sair")} Sair da conta</button>
     <p class="muted pequeno centro" style="margin-top:18px">HemoFlow · Doe. Volte. Salve vidas.</p>`;
@@ -370,6 +375,10 @@ async function dados() {
 
 async function acessibilidade() {
   return `${voltarPerfil}<h1>Letra, contraste e tema</h1><section class="cartao">${blocoAcessibilidade()}</section>`;
+}
+
+async function ajuda() {
+  return `${voltarPerfil}<h1>Ajuda</h1><p class="muted">Dúvidas mais comuns sobre doar sangue e usar o app.</p>${telaAjuda("DOADOR")}`;
 }
 
 /* ---- AÇÕES ------------------------------------------------------------------- */

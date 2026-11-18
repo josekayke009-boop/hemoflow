@@ -340,3 +340,14 @@ html[data-movimento="reduzido"] #login-cells, html[data-movimento="reduzido"] .l
 /* Tamanho dos ícones dentro de títulos e botões */
 .cartao-titulo svg { width: 26px; height: 26px; flex: none; color: var(--marca); }
 .btn svg, .icone-btn svg { width: 22px; height: 22px; flex: none; }
+
+/* Aba Ajuda: perguntas que abrem e fecham */
+.faq details { border-bottom: 1px solid var(--linha); }
+.faq details:last-child { border-bottom: 0; }
+.faq summary {
+  cursor: pointer; list-style: none; padding: 14px 32px 14px 0; font-weight: 700; position: relative; min-height: 48px;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; position: absolute; right: 4px; top: 10px; font-size: 1.4rem; color: var(--marca); }
+.faq details[open] summary::after { content: "−"; }
+.faq details p { margin: 0 0 14px; color: var(--texto-2); }

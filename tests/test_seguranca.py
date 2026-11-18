@@ -96,8 +96,10 @@ class ServerTestCase(unittest.TestCase):
         servidor.LOGIN_ATTEMPTS.clear()
         for p in [
             mock.patch.object(servidor, "connect_db", lambda: self.db),
-            mock.patch.object(servidor.Handler, "is_admin_profile", lambda _h, _id: False),
-            mock.patch.object(servidor.Handler, "access_profile", lambda _h, _id: (["CONSULTA"], ["painel.consultar"])),
+            # Versão 2.0: o perfil (doador, banco, parceiro ou admin) vem de rotas_v2.contexto_do_usuario.
+            mock.patch.object(servidor.rotas_v2, "contexto_do_usuario",
+                              lambda _id: {"papel": "DOADOR", "perfis": ["DOADOR"], "banco_id": None,
+                                           "parceiro_id": None, "doador_id": 1}),
         ]:
             p.start()
             self.addCleanup(p.stop)

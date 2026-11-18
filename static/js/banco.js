@@ -8,6 +8,7 @@
  */
 import { api, $, $$, esc, aviso, erro, janela, fecharJanela, aoEnviar, dataBR, hora, hojeISO, NIVEL_TEXTO, TIPOS, termometro } from "./nucleo.js";
 import { montarPainel } from "./painel.js";
+import { telaAjuda, ligarAjuda } from "./ajuda.js";
 
 let dados = null; // resposta de /api/banco/painel
 let unidadeId = null;
@@ -26,6 +27,7 @@ export async function montar(raiz, usuario, ctx) {
       { id: "agenda", titulo: "Agenda", icone: "agenda", tela: telaAgenda, depois: ligarAgenda },
       { id: "confirmar", titulo: "Confirmar doação", icone: "check", tela: telaConfirmar, depois: ligarConfirmar },
       { id: "resultados", titulo: "Resultados", icone: "grafico", tela: telaResultados },
+      { id: "ajuda", titulo: "Ajuda", icone: "ajuda", tela: async () => telaAjuda("BANCO"), depois: ligarAjuda },
     ],
   });
 }

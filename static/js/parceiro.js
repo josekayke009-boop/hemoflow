@@ -6,6 +6,7 @@
  */
 import { api, $, esc, aviso, aoEnviar, dataBR, TIPO_PARCEIRO } from "./nucleo.js";
 import { montarPainel } from "./painel.js";
+import { telaAjuda, ligarAjuda } from "./ajuda.js";
 
 let painel;
 const STATUS = { PENDENTE: "Aguardando aprovação", APROVADA: "No ar", RECUSADA: "Recusada" };
@@ -17,6 +18,7 @@ export async function montar(raiz, usuario, ctx) {
     { id: "ofertas", titulo: "Ofertas", icone: "loja", tela: telaOfertas, depois: ligarOfertas },
   ];
   if (inicial.parceiro.codigo_alunos) itens.push({ id: "alunos", titulo: "Alunos", icone: "pessoa", tela: telaAlunos });
+  itens.push({ id: "ajuda", titulo: "Ajuda", icone: "ajuda", tela: async () => telaAjuda("PARCEIRO"), depois: ligarAjuda });
   painel = montarPainel(raiz, { subtitulo: inicial.parceiro.nome, usuario, ctx, itens });
 }
 

@@ -9,6 +9,7 @@
  */
 import { api, $, $$, esc, aviso, erro, janela, fecharJanela, aoEnviar, dataBR, opcoesUF, TIPOS, TIPO_PARCEIRO } from "./nucleo.js";
 import { montarPainel } from "./painel.js";
+import { telaAjuda, ligarAjuda } from "./ajuda.js";
 
 let painel, ctxApp;
 const SELO = { ATIVO: "ok", PENDENTE: "atencao", SUSPENSO: "critico", INATIVO: "", BLOQUEADO: "critico", APROVADA: "ok", RECUSADA: "critico" };
@@ -26,6 +27,7 @@ export async function montar(raiz, usuario, ctx) {
       { id: "parceiros", titulo: "Parceiros", icone: "loja", tela: telaParceiros, depois: ligarAcoes },
       { id: "doadores", titulo: "Doadores", icone: "gota", tela: telaDoadores, depois: ligarDoadores },
       { id: "contas", titulo: "Contas de acesso", icone: "chave", tela: telaContas, depois: ligarContas },
+      { id: "ajuda", titulo: "Ajuda", icone: "ajuda", tela: async () => telaAjuda("ADMINISTRADOR"), depois: ligarAjuda },
     ],
   });
 }
