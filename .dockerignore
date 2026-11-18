@@ -20,3 +20,4 @@ static/img/hemoflow-logo.png
 !banco/instalacao/*.sql
 !scripts/criar_administrador.py
 !scripts/migracao_004_cpf_doador.py
+!scripts/backup_interno.py
