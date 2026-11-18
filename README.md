@@ -79,7 +79,7 @@ Abra http://127.0.0.1:8000. Para ter dados de demonstração (todos fictícios, 
 curl -X POST http://127.0.0.1:8000/api/dev/semear -d "{}"
 ```
 
-Contas de demonstração no computador: `admin@`, `captacao1@`, `captacao2@`, `padaria@`, `cursinho@` e `doador@exemplo.com`, com a senha `SENHA_DEMO` de `dados_demo.py`. **Na nuvem** essa senha não vale: lá as contas demo usam a variável `HEMOFLOW_DEMO_SENHA` do Railway e não existe admin de demonstração.
+Contas de demonstração no computador: `admin@`, `captacao1@`, `captacao2@`, `padaria@`, `cursinho@` e `doador@exemplo.com`, com a senha `SENHA_DEMO` de `dados_demo.py`. **Na nuvem** essa senha não vale: lá as contas demo usam a variável `HEMOFLOW_DEMO_SENHA` do Railway ou, sem ela, uma senha aleatória que ninguém conhece. Não existe admin de demonstração na nuvem: o admin real mostra cada perfil pelo botão "Entrar como".
 
 ## Testes
 

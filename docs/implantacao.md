@@ -84,7 +84,7 @@ Os doadores e bolsas do banco local **não** foram copiados para a nuvem.
    python scripts/migracao_005_v2.py --verificar --usar-variaveis   # mostra o que falta
    python scripts/migracao_005_v2.py --usar-variaveis               # aplica (só acrescenta; nada é apagado)
    ```
-4. (Opcional, para apresentação) criar a variável `HEMOFLOW_DEMO_SENHA` no Railway e, no *Console*, rodar `python dados_demo.py`. São criados bancos, parceiros e doadores **fictícios** (marcados com “(demo)” e e-mails `@exemplo.com`). O admin de demonstração **não** é criado na nuvem e contas de administrador nunca são apagadas.
+4. (Opcional, para apresentação) no *Console*, rodar `python dados_demo.py`. Sem a variável `HEMOFLOW_DEMO_SENHA`, as contas demo ganham uma senha aleatória que ninguém conhece e o admin mostra cada perfil pelo "Entrar como". São criados bancos, parceiros e doadores **fictícios** (marcados com “(demo)” e e-mails `@exemplo.com`). O admin de demonstração **não** é criado na nuvem e contas de administrador nunca são apagadas.
 5. Conferir `/healthz`, entrar com o admin real e com uma conta demo.
 
 As tabelas da versão 1 (bolsas, movimentações, profissionais) continuam no banco, sem uso, até uma migração 006 de limpeza feita com backup.

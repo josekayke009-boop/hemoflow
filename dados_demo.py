@@ -7,12 +7,14 @@ Pode rodar mais de uma vez: apaga e recria só os dados de demonstração.
 
 Senha das contas de demonstração:
   - no computador: SENHA_DEMO abaixo;
-  - na NUVEM: obrigatoriamente a variável HEMOFLOW_DEMO_SENHA (definida no Railway, fora do GitHub),
-    e NÃO é criada a conta admin de demonstração — este código é público, então uma senha escrita
-    aqui não pode abrir contas no servidor da internet.
+  - na NUVEM: a variável HEMOFLOW_DEMO_SENHA (definida no Railway, fora do GitHub) ou, sem ela,
+    uma senha aleatória que ninguém conhece (o admin mostra cada perfil pelo "Entrar como").
+    Na nuvem NÃO é criada a conta admin de demonstração: este código é público, então uma senha
+    escrita aqui nunca pode abrir contas no servidor da internet.
 """
 import os
 import random
+import secrets
 from datetime import date, datetime, timedelta
 
 import regras
@@ -21,14 +23,23 @@ import rotas_v2 as R
 SENHA_DEMO = "HemoFlow2026"  # só para o computador local
 
 
+_SENHA_NUVEM = None
+
+
 def senha_das_contas():
-    """Senha das contas demo: local usa SENHA_DEMO; na nuvem, exige HEMOFLOW_DEMO_SENHA (forte)."""
+    """Senha das contas demo. Computador: SENHA_DEMO. Nuvem: HEMOFLOW_DEMO_SENHA (se definida no Railway)
+    ou, sem ela, uma senha aleatória que ninguém conhece — o admin mostra cada perfil pelo "Entrar como"."""
+    global _SENHA_NUVEM
     if not R.S.PRODUCTION:
         return SENHA_DEMO
-    senha = os.environ.get("HEMOFLOW_DEMO_SENHA", "")
-    if len(senha) < 12 or senha == SENHA_DEMO:
-        raise SystemExit("Na nuvem, defina HEMOFLOW_DEMO_SENHA no Railway (12+ caracteres, diferente da senha local).")
-    return senha
+    if _SENHA_NUVEM is None:
+        senha = os.environ.get("HEMOFLOW_DEMO_SENHA", "")
+        if senha and (len(senha) < 12 or senha == SENHA_DEMO):
+            raise SystemExit("HEMOFLOW_DEMO_SENHA precisa ter 12+ caracteres e ser diferente da senha local.")
+        _SENHA_NUVEM = senha or secrets.token_urlsafe(24)
+    return _SENHA_NUVEM
+
+
 MARCA = "(demo)"
 
 BANCOS = [
@@ -218,7 +229,12 @@ def semear():
     resumo = R.transacao(gravar)
     resumo["contas"] = ([] if R.S.PRODUCTION else ["admin@exemplo.com"]) + ["captacao1@exemplo.com", "captacao2@exemplo.com", "padaria@exemplo.com",
                         "cursinho@exemplo.com", "doador@exemplo.com"]
-    resumo["senha"] = "a da variável HEMOFLOW_DEMO_SENHA" if R.S.PRODUCTION else "veja SENHA_DEMO em dados_demo.py"
+    if not R.S.PRODUCTION:
+        resumo["senha"] = "veja SENHA_DEMO em dados_demo.py"
+    elif os.environ.get("HEMOFLOW_DEMO_SENHA"):
+        resumo["senha"] = "a da variável HEMOFLOW_DEMO_SENHA"
+    else:
+        resumo["senha"] = "aleatória (ninguém conhece): use 'Entrar como' no painel do admin"
     return resumo
 
 
