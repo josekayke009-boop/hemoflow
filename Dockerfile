@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Versão 2.0: servidor + rotas (rotas_v2.py) + regras de negócio (regras.py).
 # dados_demo.py só cria dados FICTÍCIOS quando alguém roda "python dados_demo.py" no console.
 COPY servidor.py rotas_v2.py regras.py dados_demo.py ./
-COPY scripts/criar_administrador.py scripts/migracao_004_cpf_doador.py scripts/migracao_005_v2.py ./scripts/
+COPY scripts/criar_administrador.py scripts/migracao_004_cpf_doador.py scripts/migracao_005_v2.py scripts/backup_interno.py ./scripts/
 COPY static ./static
 # Estrutura do banco para a instalação automática (HEMOFLOW_AUTO_INSTALL=1) e migração 005.
 COPY banco/instalacao ./banco/instalacao

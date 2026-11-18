@@ -21,6 +21,7 @@ static/img/hemoflow-logo.png
 !scripts/criar_administrador.py
 !scripts/migracao_004_cpf_doador.py
 !scripts/migracao_005_v2.py
+!scripts/backup_interno.py
 !banco/migracoes
 !banco/migracoes/005_v2_captacao.sql
 !banco/migracoes/005_v2_dados.sql
