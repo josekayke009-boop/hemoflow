@@ -292,15 +292,15 @@ async function direitos() {
       .map((b) => {
         let meta = "";
         if (b.meta) {
-          const pct = Math.min(100, Math.round((100 * b.meta.feitas) / b.meta.minimo));
-          meta = `<p class="pequeno" style="margin:8px 0 4px"><strong>${b.meta.feitas} de ${b.meta.minimo}</strong> doações verificadas nos últimos ${b.janela_meses || 12} meses ${b.meta.cumprida ? "· ✅ meta cumprida" : ""}</p>
+          const pct = Math.min(100, Math.round((100 * b.meta.feitas) / b.meta.alvo));
+          meta = `<p class="pequeno" style="margin:8px 0 4px"><strong>${b.meta.feitas} de ${b.meta.alvo}</strong> doações verificadas nos últimos ${b.janela_meses || 12} meses ${b.meta.cumprida ? "· ✅ meta cumprida" : ""}</p>
             <div class="progresso" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`;
         }
         return `<section class="cartao"><span class="selo">${b.uf ? esc(b.uf) : "Todo o Brasil"}</span><h3 style="margin-top:8px">${esc(b.titulo)}</h3><p class="muted" style="margin:0">${esc(b.descricao)}</p>${meta}</section>`;
       })
       .join("")}
     <section class="cartao"><h2>Conquistas</h2><div class="conquistas">${r.conquistas
-      .map((c) => `<div class="conquista${c.ganha ? " ganha" : ""}"><b>${c.ganha ? "🏅" : "🔒"}</b>${esc(c.titulo)}</div>`)
+      .map((c) => `<div class="conquista${c.ganhou ? " ganha" : ""}"><b>${c.ganhou ? "🏅" : "🔒"}</b>${esc(c.titulo)}</div>`)
       .join("")}</div></section>
     <p class="muted pequeno">${esc(r.aviso)}</p>`;
 }
