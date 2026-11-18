@@ -266,7 +266,7 @@ ALTER TABLE doadores
   ADD CONSTRAINT fk_doadores_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE SET NULL;
 
 -- ---------------------------------------------------------------- dados de referência
-INSERT IGNORE INTO perfis (nome, descricao, ativo) VALUES
+INSERT IGNORE INTO perfis (nome, descricao, sistema) VALUES
   ('BANCO', 'Equipe de captação de um banco de sangue privado', 1),
   ('PARCEIRO', 'Parceiro: comércio, cursinho, pré-Enem ou faculdade', 1),
   ('DOADOR', 'Doador de sangue (app)', 1);
