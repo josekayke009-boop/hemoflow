@@ -16,14 +16,13 @@ js/app.js. Configure as variáveis HEMOFLOW_* (ver .env.example) antes de inicia
         6.2 Rotas .................. GET, POST e DELETE (qual URL chama qual função)
         6.3 Login e senha .......... entrar, bloqueio, recuperação de senha
         6.4 Perfis e permissões .... administrador e matriz de permissões
-        6.5 Estoque e bolsas ....... painel, bolsas, movimentações
-        6.6 Doadores ............... listar, cadastrar, revisar, excluir
-        6.7 Notificações ........... alertas do sino, baixa e preferência
-        6.8 Contas e profissionais . contas de acesso e cadastro de profissionais
         6.9 Arquivos das telas ..... HTML, CSS, JS e imagens da pasta static/
         6.10 Suporte ............... mensagem da aba Suporte enviada por e-mail
    7. INSTALAÇÃO AUTOMÁTICA ........ cria as tabelas num banco novo (nuvem)
    8. INÍCIO ....................... main()
+
+As rotas da versão 2.0 (doador, banco de sangue, parceiro, admin) ficam em rotas_v2.py
+e as regras de negócio em regras.py.
 
 Projeto acadêmico: use somente dados fictícios.
 """
@@ -42,7 +41,6 @@ import threading
 import time
 import urllib.error
 import urllib.request
-import uuid
 from datetime import date, datetime
 from email.message import EmailMessage
 from http.cookies import SimpleCookie
@@ -254,33 +252,12 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-def expired(row):
-    value = row["data_validade"]
-    if isinstance(value, datetime):
-        value = value.date()
-    if isinstance(value, date):
-        return value < hoje()
-    return str(value) < hoje().isoformat()
-
-
 def serialize_date(value):
     if value is None:
         return None
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     return str(value)
-
-
-def bag_json(row):
-    item = dict(row)
-    item["data_coleta"] = serialize_date(item.get("data_coleta"))
-    item["data_validade"] = serialize_date(item.get("data_validade"))
-    item["criado_em"] = serialize_date(item.get("criado_em"))
-    item["vencida"] = expired(item)
-    item["status_label"] = STATUS_LABELS.get(item.get("status"), item.get("status"))
-    item["tipo_sanguineo"] = item.get("tipo_sanguineo")
-    item["localizacao"] = item.get("localizacao")
-    return item
 
 
 def parse_date(value, label):
@@ -454,20 +431,6 @@ class ApiError(Exception):
 
 
 EMAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
-# Notificações: limites de estoque disponível por tipo sanguíneo e prazo de revisão de cadastro.
-STOCK_CRITICAL = 5
-STOCK_LOW = 10
-DONOR_REVIEW_MONTHS = 12
-
-
-def notification_pref_key(user_id) -> str:
-    return f"notificacoes.usuario.{int(user_id)}"
-
-
-def notification_seen_key(user_id) -> str:
-    return f"notificacoes.vistas.usuario.{int(user_id)}"
-
-
 DUPLICATE_KEY = 1062  # código MySQL ER_DUP_ENTRY
 ROW_IS_REFERENCED = 1451  # código MySQL ER_ROW_IS_REFERENCED_2 (chave estrangeira)
 
@@ -517,60 +480,15 @@ def duplicate_message(exc: mysql.connector.IntegrityError) -> str:
     return "Registro duplicado: já existe um cadastro com esses dados."
 
 
-# Itens da migração 001 (scripts/migracao_001_email_unico.py).
-# Só resultados positivos ficam em cache: aplicar a migração com o servidor
-# aberto passa a valer na próxima requisição, sem reiniciar.
-MIGRATION_001 = {
-    ("doadores", "uq_doadores_email"): "index",
-    ("profissionais", "email"): "column",
-    ("profissionais", "uq_profissionais_email"): "index",
-}
-MIGRATION_002 = {("doadores", column): "column" for column in ADDRESS_FIELDS}
-# Migração 004 (scripts/migracao_004_cpf_doador.py): CPF do doador, único.
-MIGRATION_004 = {("doadores", "cpf"): "column", ("doadores", "uq_doadores_cpf"): "index"}
-SCHEMA_KINDS = {**MIGRATION_001, **MIGRATION_002, **MIGRATION_004}
-_SCHEMA_OK: set = set()
-
-
-def schema_has(table: str, name: str) -> bool:
-    key = (table, name)
-    if key in _SCHEMA_OK:
-        return True
-    if SCHEMA_KINDS.get(key) == "column":
-        sql = """SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-                 WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND COLUMN_NAME=%s LIMIT 1"""
-    else:
-        sql = """SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-                 WHERE TABLE_SCHEMA=%s AND TABLE_NAME=%s AND INDEX_NAME=%s LIMIT 1"""
+def v2_instalado() -> bool:
+    """A migração 005 (HemoFlow 2.0) já foi aplicada neste banco?"""
     with connect_db() as db:
         cur = db.cursor()
-        cur.execute(sql, (DB_NAME, table, name))
-        found = cur.fetchone() is not None
+        cur.execute("""SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                       WHERE TABLE_SCHEMA=%s AND TABLE_NAME IN ('agenda_doacoes','estoque_niveis','codigos_login')""", (DB_NAME,))
+        n = cur.fetchone()[0]
         cur.close()
-    if found:
-        _SCHEMA_OK.add(key)
-    return found
-
-
-def pending_migration_002() -> list[str]:
-    return [f"{table}.{name}" for table, name in MIGRATION_002 if not schema_has(table, name)]
-
-
-def donor_address_ready() -> bool:
-    return not pending_migration_002()
-
-
-def pending_migration_004() -> list[str]:
-    return [f"{table}.{name}" for table, name in MIGRATION_004 if not schema_has(table, name)]
-
-
-def donor_cpf_ready() -> bool:
-    return not pending_migration_004()
-
-
-def pending_migration_001() -> list[str]:
-    return [f"{table}.{name}" for table, name in MIGRATION_001 if not schema_has(table, name)]
-
+    return n == 3
 
 
 # ============================================================================
@@ -589,8 +507,14 @@ def session_cookie(value: str, max_age: int) -> str:
     return cookie + "; Secure" if COOKIE_SECURE else cookie
 
 
-class Handler(BaseHTTPRequestHandler):
-    server_version = "HemoFlow/2.2"
+import sys  # noqa: E402
+import rotas_v2  # noqa: E402  (rotas da versão 2.0)
+
+rotas_v2.S = sys.modules[__name__]
+
+
+class Handler(rotas_v2.RotasV2, BaseHTTPRequestHandler):
+    server_version = "HemoFlow/3.0"
 
 
     # ========================================================================
@@ -702,39 +626,14 @@ class Handler(BaseHTTPRequestHandler):
                 record = self.session()
                 if not record:
                     return self.send_json({"autenticado": False}, 200)
-                is_admin = self.is_admin_profile(record["id"])
-                profiles, permissions = self.access_profile(record["id"])
-                return self.send_json({
-                    "autenticado": True,
-                    "usuario": {
-                        "id": record["id"],
-                        "nome": record["nome"],
-                        "email": record["email"],
-                        "is_admin": is_admin,
-                        "perfis": profiles,
-                        "permissoes": permissions,
-                    }
-                })
+                ctx = self.contexto_efetivo(record)
+                usuario = rotas_v2.usuario_json(record, ctx)
+                if record.get("como"):
+                    usuario["entrou_como"] = record["como"].get("nome_como")
+                return self.send_json({"autenticado": True, "usuario": usuario})
             if parsed.path.startswith("/api/"):
-                record = self.require_session()
-                actor_id = record["id"]
-                if parsed.path == "/api/access-accounts":
-                    self.require_admin_profile(actor_id, "consultar contas de acesso")
-                    return self.list_access_accounts()
-                if parsed.path == "/api/summary":
-                    self.require_permission(actor_id, "painel.consultar")
-                    return self.summary()
-                if parsed.path == "/api/bags":
-                    self.require_permission(actor_id, "estoque.consultar")
-                    return self.list_bags(parse_qs(parsed.query))
-                if parsed.path == "/api/movements":
-                    self.require_permission(actor_id, "estoque.consultar")
-                    return self.list_movements()
-                if parsed.path == "/api/donors":
-                    self.require_permission(actor_id, "doadores.consultar")
-                    return self.list_donors(parse_qs(parsed.query))
-                if parsed.path == "/api/notifications":
-                    return self.list_notifications(actor_id)
+                if self.rota_v2("GET", parsed.path, parse_qs(parsed.query)):
+                    return None
                 raise ApiError("Endpoint não encontrado.", 404)
             return self.static_file(parsed.path)
         except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
@@ -789,64 +688,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True}, 200, [
                     ("Set-Cookie", session_cookie("", 0))
                 ])
-            record = self.require_session()
-            actor_id = record["id"]
-            if path == "/api/access-accounts":
-                self.require_admin_profile(actor_id, "criar contas de acesso")
-                return self.create_access_account(self.read_json(), actor_id)
-            if path == "/api/bags":
-                self.require_permission(actor_id, "estoque.bolsa.criar")
-                return self.create_bag(self.read_json(), actor_id)
-            if path == "/api/donors":
-                self.require_permission(actor_id, "doadores.criar")
-                return self.create_donor(self.read_json(), actor_id)
             if path == "/api/support":
                 # Aba Suporte: qualquer usuário logado pode escrever.
-                return self.send_support(self.read_json(), record)
-            if path == "/api/notifications/read":
-                return self.mark_notifications_read(self.read_json(), actor_id)
-            if path == "/api/notifications/preferences":
-                # Cada usuário liga/desliga as próprias notificações.
-                return self.save_notification_preference(self.read_json(), actor_id)
-            review = re.fullmatch(r"/api/donors/(\d+)/review", path)
-            if review:
-                self.require_permission(actor_id, "doadores.editar")
-                return self.review_donor(int(review.group(1)), actor_id)
-            if path == "/api/professionals":
-                # Restrição explícita: só ADMINISTRADOR pode cadastrar profissionais,
-                # mesmo que outro perfil tenha profissionais.gerenciar no banco.
-                self.require_admin_profile(actor_id, "cadastrar profissionais")
-                return self.create_professional(self.read_json(), actor_id)
-            match = re.fullmatch(r"/api/bags/(\d+)/transition", path)
-            if match:
-                data = self.read_json()
-                status = str(data.get("status", "")).upper()
-                required = {
-                    "RESERVADA": "estoque.bolsa.reservar",
-                    "TRANSFUNDIDA": "estoque.bolsa.transfundir",
-                    "DESCARTADA": "estoque.bolsa.descartar",
-                    "DISPONIVEL": "estoque.bolsa.liberar",
-                    "QUARENTENA": "estoque.bolsa.editar",
-                }.get(status)
-                if not required:
-                    raise ApiError("Status inválido.")
-                self.require_permission(actor_id, required)
-                return self.transition(int(match.group(1)), data, actor_id)
+                return self.send_support(self.read_json(), self.require_session())
+            if self.rota_v2("POST", path, {}):
+                return None
             raise ApiError("Endpoint não encontrado.", 404)
         except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
             self.handle_exception(exc)
 
     def do_DELETE(self):
         try:
-            path = urlparse(self.path).path
-            record = self.require_session()
-            match = re.fullmatch(r"/api/donors/(\d+)", path)
-            if match:
-                # "Editar e inativar doadores": ADMINISTRADOR e RESPONSAVEL_TECNICO.
-                self.require_permission(record["id"], "doadores.editar")
-                return self.delete_donor(int(match.group(1)), record["id"])
             raise ApiError("Endpoint não encontrado.", 404)
-        except Exception as exc:  # noqa: BLE001 - toda falha vira resposta JSON
+        except Exception as exc:  # noqa: BLE001
             self.handle_exception(exc)
 
 
@@ -991,31 +845,9 @@ class Handler(BaseHTTPRequestHandler):
                            WHERE id=%s""", (user["id"],))
             db.commit()
             cur.close()
-        is_admin = self.is_admin_profile(user["id"])
-        profiles, permissions = self.access_profile(user["id"])
-        if not profiles:
-            raise ApiError("Esta conta não possui perfil de acesso. Procure o administrador.", 403)
-        token = secrets.token_urlsafe(32)
-        # Remove sessões expiradas para limitar crescimento em memória.
-        for old_token in [key for key, value in SESSIONS.items() if value["expires"] <= now]:
-            SESSIONS.pop(old_token, None)
-        SESSIONS[token] = {
-            "id": user["id"], "nome": user["nome"], "email": user["email"],
-            "is_admin": is_admin,
-            "expires": now + SESSION_TTL,
-        }
-        cookie = session_cookie(token, SESSION_TTL)  # inclui Secure em produção (HTTPS)
-        self.send_json({
-            "ok": True,
-            "usuario": {
-                "id": user["id"],
-                "nome": user["nome"],
-                "email": user["email"],
-                "is_admin": is_admin,
-                "perfis": profiles,
-                "permissoes": permissions,
-            }
-        }, 200, [("Set-Cookie", cookie)])
+        token, ctx = rotas_v2.criar_sessao(self, user)
+        self.send_json({"ok": True, "usuario": rotas_v2.usuario_json(user, ctx)}, 200,
+                       [("Set-Cookie", session_cookie(token, SESSION_TTL))])
 
     def register_failed_login(self, user_id):
         """Conta a senha errada; na 5ª seguida, bloqueia a conta por 15 minutos e zera o contador."""
@@ -1030,650 +862,6 @@ class Handler(BaseHTTPRequestHandler):
             db.commit()
             cur.close()
 
-
-    # ========================================================================
-    # 6.4 Perfis e permissões
-    # ========================================================================
-    def require_operator(self, actor_id):
-        if not isinstance(actor_id, int) or actor_id <= 0:
-            raise ApiError("Usuário autenticado inválido.", 401)
-        return actor_id
-
-    def is_admin_profile(self, actor_id):
-        """Consulta no MySQL se o usuário possui o perfil ADMINISTRADOR."""
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("""
-                SELECT 1
-                FROM usuario_perfis up
-                JOIN perfis pf ON pf.id = up.perfil_id
-                WHERE up.usuario_id = %s AND pf.nome = 'ADMINISTRADOR'
-                LIMIT 1
-            """, (actor_id,))
-            allowed = cur.fetchone() is not None
-            cur.close()
-        return allowed
-
-    def require_admin_profile(self, actor_id, action="realizar esta operação"):
-        """Bloqueia no servidor qualquer gerenciamento por não administradores."""
-        if not self.is_admin_profile(actor_id):
-            raise ApiError(f"Somente o perfil ADMINISTRADOR pode {action}.", 403)
-
-    def access_profile(self, actor_id):
-        """Perfis e códigos de permissão do usuário (usados só para ajustar a interface;
-        a autorização real continua sendo verificada em cada rota)."""
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("""
-                SELECT pf.nome FROM usuario_perfis up JOIN perfis pf ON pf.id=up.perfil_id
-                WHERE up.usuario_id=%s ORDER BY pf.id
-            """, (actor_id,))
-            profiles = [row[0] for row in cur.fetchall()]
-            cur.execute("""
-                SELECT DISTINCT p.codigo
-                FROM usuario_perfis up
-                JOIN perfil_permissoes pp ON pp.perfil_id = up.perfil_id
-                JOIN permissoes p ON p.id = pp.permissao_id
-                WHERE up.usuario_id=%s ORDER BY p.codigo
-            """, (actor_id,))
-            permissions = [row[0] for row in cur.fetchall()]
-            cur.close()
-        return profiles, permissions
-
-    def require_permission(self, actor_id, permission_code):
-        """Administrador é superusuário; os demais seguem a matriz de permissões."""
-        if not self.has_permission(actor_id, permission_code):
-            raise ApiError("Você não tem permissão para realizar esta operação.", 403)
-
-    def has_permission(self, actor_id, permission_code):
-        if self.is_admin_profile(actor_id):
-            return True
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("""
-                SELECT 1
-                FROM usuario_perfis up
-                JOIN perfil_permissoes pp ON pp.perfil_id = up.perfil_id
-                JOIN permissoes p ON p.id = pp.permissao_id
-                WHERE up.usuario_id = %s AND p.codigo = %s
-                LIMIT 1
-            """, (actor_id, permission_code))
-            allowed = cur.fetchone() is not None
-            cur.close()
-        return allowed
-
-
-    # ========================================================================
-    # 6.5 Estoque: painel, bolsas e movimentações
-    # ========================================================================
-    def summary(self):
-        today = hoje()
-        with connect_db() as db:
-            cur = db.cursor(dictionary=True)
-            cur.execute("SELECT COUNT(*) AS n FROM bolsas")
-            total = cur.fetchone()["n"]
-            cur.execute("""
-                SELECT ts.codigo AS tipo_sanguineo, COUNT(*) AS n
-                FROM bolsas b JOIN tipos_sanguineos ts ON ts.id=b.tipo_sanguineo_id
-                WHERE b.status='DISPONIVEL' AND b.data_validade >= %s
-                GROUP BY ts.codigo
-            """, (today,))
-            grouped = {r["tipo_sanguineo"]: r["n"] for r in cur.fetchall()}
-            cur.execute("SELECT COUNT(*) AS n FROM bolsas WHERE status='DISPONIVEL' AND data_validade >= %s", (today,))
-            available = cur.fetchone()["n"]
-            cur.execute("""
-                SELECT COUNT(*) AS n FROM bolsas
-                WHERE data_validade < %s AND status NOT IN ('TRANSFUNDIDA','DESCARTADA')
-            """, (today,))
-            attention = cur.fetchone()["n"]
-            cur.execute("""
-                SELECT COUNT(*) AS n FROM bolsas
-                WHERE data_validade BETWEEN %s AND DATE_ADD(%s, INTERVAL 7 DAY)
-                  AND status NOT IN ('TRANSFUNDIDA','DESCARTADA')
-            """, (today, today))
-            near = cur.fetchone()["n"]
-            cur.close()
-        self.send_json({
-            "total": total, "disponiveis": available, "vencidas": attention,
-            "vencem_em_7_dias": near,
-            "por_tipo": {t: grouped.get(t, 0) for t in sorted(BLOOD_TYPES)},
-            "hoje": today.isoformat(),
-        })
-
-    def list_bags(self, query):
-        clauses, params = [], []
-        blood = query.get("tipo", [""])[0].upper()
-        status = query.get("status", [""])[0].upper()
-        search = query.get("q", [""])[0].strip()[:100]
-        if blood:
-            if blood not in BLOOD_TYPES:
-                raise ApiError("Tipo sanguíneo inválido.")
-            clauses.append("ts.codigo=%s")
-            params.append(blood)
-        if status:
-            if status not in STATUSES:
-                raise ApiError("Status inválido.")
-            clauses.append("b.status=%s")
-            params.append(status)
-        if search:
-            clauses.append("(b.codigo LIKE %s OR la.nome LIKE %s OR ts.codigo LIKE %s)")
-            params.extend([f"%{search}%"] * 3)
-        sql = """
-            SELECT b.id,b.codigo,ts.codigo AS tipo_sanguineo,b.volume_ml,
-                   b.data_coleta,b.data_validade,la.nome AS localizacao,b.status,
-                   NULL AS identificador_doador,COALESCE(b.observacoes,'') AS observacoes,
-                   b.criado_em
-            FROM bolsas b
-            JOIN tipos_sanguineos ts ON ts.id=b.tipo_sanguineo_id
-            JOIN locais_armazenamento la ON la.id=b.local_id
-        """
-        if clauses:
-            sql += " WHERE " + " AND ".join(clauses)
-        sql += " ORDER BY b.data_validade ASC, b.id DESC LIMIT 500"
-        with connect_db() as db:
-            cur = db.cursor(dictionary=True)
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            cur.close()
-        self.send_json([bag_json(r) for r in rows])
-
-    def create_bag(self, data, actor_id):
-        actor = self.require_operator(actor_id)
-        blood = str(data.get("tipo_sanguineo", "")).upper()
-        if blood not in BLOOD_TYPES:
-            raise ApiError("Selecione um tipo sanguíneo válido.")
-        try:
-            volume = int(data.get("volume_ml", 0))
-        except (TypeError, ValueError):
-            raise ApiError("Volume deve ser um número inteiro.")
-        if not 1 <= volume <= 1000:
-            raise ApiError("Volume deve estar entre 1 e 1000 ml.")
-        try:
-            collected = parse_date(data.get("data_coleta"), "data de coleta")
-            expiry = parse_date(data.get("data_validade"), "data de validade")
-        except ValueError as exc:
-            raise ApiError(str(exc))
-        if expiry < collected:
-            raise ApiError("A validade não pode ser anterior à coleta.")
-        if expiry < hoje():
-            raise ApiError("Não é possível cadastrar uma bolsa já vencida como nova entrada.")
-        location = str(data.get("localizacao", "")).strip()[:100]
-        if not location:
-            raise ApiError("Informe a localização da bolsa.")
-        status = str(data.get("status", "DISPONIVEL")).upper()
-        if status not in {"DISPONIVEL", "QUARENTENA"}:
-            raise ApiError("Uma nova bolsa deve iniciar disponível ou em quarentena.")
-        note = str(data.get("observacoes", "")).strip()[:2000]
-        code = "HF-" + uuid.uuid4().hex[:10].upper()
-        conn = connect_db()
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT id FROM tipos_sanguineos WHERE codigo=%s AND ativo=TRUE", (blood,))
-            type_row = cur.fetchone()
-            if not type_row:
-                raise ApiError("Tipo sanguíneo não cadastrado no banco.", 500)
-            cur.execute("SELECT id FROM hemocomponentes WHERE codigo='CONCENTRADO_HEMACIAS' AND ativo=TRUE")
-            component = cur.fetchone()
-            if not component:
-                raise ApiError("Hemocomponente padrão não cadastrado.", 500)
-            cur.execute("SELECT id FROM locais_armazenamento WHERE nome=%s AND ativo=TRUE", (location,))
-            loc = cur.fetchone()
-            if not loc:
-                cur.execute("INSERT INTO locais_armazenamento (nome,descricao,ativo) VALUES (%s,%s,TRUE)",
-                            (location, "Local criado pelo protótipo acadêmico"))
-                loc_id = cur.lastrowid
-            else:
-                loc_id = loc["id"]
-            cur.execute("""
-                INSERT INTO bolsas
-                (codigo,tipo_sanguineo_id,hemocomponente_id,local_id,volume_ml,
-                 data_coleta,data_validade,status,observacoes,criado_por)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (code, type_row["id"], component["id"], loc_id, volume,
-                  collected, expiry, status, note, actor))
-            bag_id = cur.lastrowid
-            cur.execute("""
-                INSERT INTO movimentacoes_estoque
-                (bolsa_id,tipo_movimentacao,status_anterior,status_novo,
-                 local_destino_id,responsavel_id,motivo)
-                VALUES (%s,'ENTRADA',NULL,%s,%s,%s,'Cadastro inicial')
-            """, (bag_id, status, loc_id, actor))
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'CRIAR','estoque','bolsas',%s,%s)
-            """, (actor, str(bag_id), json.dumps({"codigo": code, "status": status}))
-            )
-            conn.commit()
-            cur.execute("""
-                SELECT b.id,b.codigo,ts.codigo AS tipo_sanguineo,b.volume_ml,
-                       b.data_coleta,b.data_validade,la.nome AS localizacao,b.status,
-                       NULL AS identificador_doador,COALESCE(b.observacoes,'') AS observacoes,
-                       b.criado_em
-                FROM bolsas b
-                JOIN tipos_sanguineos ts ON ts.id=b.tipo_sanguineo_id
-                JOIN locais_armazenamento la ON la.id=b.local_id
-                WHERE b.id=%s
-            """, (bag_id,))
-            result = bag_json(cur.fetchone())
-            cur.close()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        self.send_json(result, 201)
-
-    def transition(self, bag_id, data, actor_id):
-        actor = self.require_operator(actor_id)
-        new_status = str(data.get("status", "")).upper()
-        if new_status not in STATUSES:
-            raise ApiError("Status inválido.")
-        note = str(data.get("observacao", "")).strip()[:2000]
-        conn = connect_db()
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("""
-                SELECT b.*,ts.codigo AS tipo_sanguineo,la.nome AS localizacao
-                FROM bolsas b
-                JOIN tipos_sanguineos ts ON ts.id=b.tipo_sanguineo_id
-                JOIN locais_armazenamento la ON la.id=b.local_id
-                WHERE b.id=%s FOR UPDATE
-            """, (bag_id,))
-            row = cur.fetchone()
-            if row is None:
-                raise ApiError("Bolsa não encontrada.", 404)
-            if new_status not in TRANSITIONS.get(row["status"], set()):
-                raise ApiError(f"Não é permitido alterar de {row['status']} para {new_status}.", 409)
-            if new_status == "TRANSFUNDIDA" and expired(row):
-                raise ApiError("Bolsa vencida não pode ser registrada como transfundida.", 409)
-            cur.execute("UPDATE bolsas SET status=%s WHERE id=%s", (new_status, bag_id))
-            cur.execute("""
-                INSERT INTO movimentacoes_estoque
-                (bolsa_id,tipo_movimentacao,status_anterior,status_novo,
-                 local_origem_id,local_destino_id,responsavel_id,motivo)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (bag_id, {
-                "RESERVADA":"RESERVA", "DISPONIVEL":"LIBERACAO",
-                "TRANSFUNDIDA":"TRANSFUSAO", "DESCARTADA":"DESCARTE",
-                "QUARENTENA":"QUARENTENA"
-            }[new_status], row["status"], new_status, row["local_id"], row["local_id"], actor, note))
-            # Mantém a tabela reservas coerente com o status da bolsa.
-            if new_status == "RESERVADA":
-                cur.execute("""
-                    INSERT INTO reservas (bolsa_id, status, reservada_por, motivo)
-                    VALUES (%s,'ATIVA',%s,%s)
-                """, (bag_id, actor, note or None))
-            elif row["status"] == "RESERVADA":
-                closing = {"TRANSFUNDIDA": "CONCLUIDA", "DISPONIVEL": "LIBERADA"}.get(new_status, "CANCELADA")
-                cur.execute("""
-                    UPDATE reservas SET status=%s, liberada_em=NOW()
-                    WHERE bolsa_id=%s AND status='ATIVA'
-                """, (closing, bag_id))
-            if new_status == "DESCARTADA":
-                cur.execute("""
-                    INSERT INTO descartes (bolsa_id,motivo_codigo,justificativa,descartada_por)
-                    VALUES (%s,%s,%s,%s)
-                """, (bag_id, "OUTRO", note or "Descarte registrado no protótipo", actor))
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'ALTERAR_STATUS','estoque','bolsas',%s,%s)
-            """, (actor, str(bag_id), json.dumps({"de": row["status"], "para": new_status, "observacao": note})))
-            conn.commit()
-            cur.execute("""
-                SELECT b.id,b.codigo,ts.codigo AS tipo_sanguineo,b.volume_ml,
-                       b.data_coleta,b.data_validade,la.nome AS localizacao,b.status,
-                       NULL AS identificador_doador,COALESCE(b.observacoes,'') AS observacoes,
-                       b.criado_em
-                FROM bolsas b JOIN tipos_sanguineos ts ON ts.id=b.tipo_sanguineo_id
-                JOIN locais_armazenamento la ON la.id=b.local_id WHERE b.id=%s
-            """, (bag_id,))
-            result = bag_json(cur.fetchone())
-            cur.close()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        self.send_json(result)
-
-
-
-    # ========================================================================
-    # 6.6 Doadores
-    # ========================================================================
-    def list_donors(self, query):
-        search = query.get("q", [""])[0].strip()[:100]
-        address = (", " + ", ".join(ADDRESS_FIELDS)) if donor_address_ready() else ""
-        has_cpf = donor_cpf_ready()
-        cpf_col = ", cpf" if has_cpf else ""
-        sql = f"""
-            SELECT id, nome, data_nascimento, email, telefone, codigo_ficticio,
-                   status, observacoes, tipo_sanguineo, peso_kg, criado_em, atualizado_em{address}{cpf_col},
-                   (status = 'ATIVO' AND atualizado_em < DATE_SUB(NOW(), INTERVAL %s MONTH)) AS revisao_pendente
-            FROM doadores
-        """
-        params = [DONOR_REVIEW_MONTHS]
-        if search:
-            sql += " WHERE nome LIKE %s OR codigo_ficticio LIKE %s OR email LIKE %s"
-            params.extend([f"%{search}%"] * 3)
-            if has_cpf and len(only_digits(search)) == 11:
-                sql += " OR cpf = %s"  # busca pelo CPF completo (a lista nunca mostra o número inteiro)
-                params.append(only_digits(search))
-        sql += " ORDER BY id DESC LIMIT 500"
-        with connect_db() as db:
-            cur = db.cursor(dictionary=True)
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            cur.close()
-        for row in rows:
-            row["data_nascimento"] = serialize_date(row.get("data_nascimento"))
-            row["criado_em"] = serialize_date(row.get("criado_em"))
-            row["atualizado_em"] = serialize_date(row.get("atualizado_em"))
-            row["revisao_pendente"] = bool(row.get("revisao_pendente"))
-            row["cpf_mascarado"] = mask_cpf(row.pop("cpf", None))
-        self.send_json(rows)
-
-    def review_donor(self, donor_id, actor_id):
-        """Registra que os dados do doador foram conferidos/atualizados hoje."""
-        conn = connect_db()
-        try:
-            cur = conn.cursor()
-            cur.execute("UPDATE doadores SET atualizado_em=NOW() WHERE id=%s", (donor_id,))
-            if cur.rowcount != 1:
-                raise ApiError("Doador não encontrado.", 404)
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'REVISAR','doadores','doadores',%s,%s)
-            """, (actor_id, str(donor_id), json.dumps({"cadastro_revisado": True})))
-            conn.commit()
-            cur.close()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        self.send_json({"ok": True, "mensagem": "Cadastro marcado como revisado."})
-
-    # ---------------- Notificações do sistema ----------------
-
-    # ========================================================================
-    # 6.7 Notificações (sino)
-    # ========================================================================
-    def notifications_enabled(self, actor_id) -> bool:
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("SELECT valor_json FROM configuracoes WHERE chave=%s LIMIT 1",
-                        (notification_pref_key(actor_id),))
-            row = cur.fetchone()
-            cur.close()
-        if not row:
-            return True  # padrão: ativadas
-        value = row[0]
-        if isinstance(value, (bytes, bytearray)):
-            value = value.decode("utf-8")
-        try:
-            return bool(json.loads(value)) if isinstance(value, str) else bool(value)
-        except ValueError:
-            return True
-
-    def save_notification_preference(self, data, actor_id):
-        enabled = data.get("ativas")
-        if not isinstance(enabled, bool):
-            raise ApiError("Informe se as notificações devem ficar ativas (true ou false).")
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("""
-                INSERT INTO configuracoes (chave, valor_json, descricao, atualizado_por)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE valor_json=VALUES(valor_json), atualizado_por=VALUES(atualizado_por)
-            """, (notification_pref_key(actor_id), json.dumps(enabled),
-                  "Notificações do sistema ativas para o usuário", actor_id))
-            db.commit()
-            cur.close()
-        self.send_json({"ok": True, "ativas": enabled,
-                        "mensagem": "Notificações ativadas." if enabled else "Notificações desativadas."})
-
-    def load_seen_notifications(self, actor_id) -> set:
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("SELECT valor_json FROM configuracoes WHERE chave=%s LIMIT 1",
-                        (notification_seen_key(actor_id),))
-            row = cur.fetchone()
-            cur.close()
-        if not row:
-            return set()
-        value = row[0]
-        if isinstance(value, (bytes, bytearray)):
-            value = value.decode("utf-8")
-        try:
-            data = json.loads(value) if isinstance(value, str) else value
-        except ValueError:
-            return set()
-        return {str(k) for k in data} if isinstance(data, list) else set()
-
-    def save_seen_notifications(self, actor_id, keys):
-        with connect_db() as db:
-            cur = db.cursor()
-            cur.execute("""
-                INSERT INTO configuracoes (chave, valor_json, descricao, atualizado_por)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE valor_json=VALUES(valor_json), atualizado_por=VALUES(atualizado_por)
-            """, (notification_seen_key(actor_id), json.dumps(sorted(keys)),
-                  "Notificações já vistas pelo usuário", actor_id))
-            db.commit()
-            cur.close()
-
-    def list_notifications(self, actor_id):
-        """Alertas calculados na hora a partir do banco. "total" conta só os não lidos:
-        um alerta visto deixa de contar até a situação mudar (a chave muda)."""
-        if not self.notifications_enabled(actor_id):
-            return self.send_json({"ativas": False, "total": 0, "total_alertas": 0, "itens": []})
-        items = self.build_notifications(actor_id)
-        seen = self.load_seen_notifications(actor_id)
-        for item in items:
-            item["lida"] = item["chave"] in seen
-        unread = sum(1 for item in items if not item["lida"])
-        self.send_json({"ativas": True, "total": unread, "total_alertas": len(items), "itens": items})
-
-    def mark_notifications_read(self, data, actor_id):
-        """Dá baixa (marca como vista) em uma ou mais notificações, ou em todas."""
-        current = {item["chave"] for item in self.build_notifications(actor_id)}
-        if data.get("todas") is True:
-            chosen = set(current)
-        else:
-            keys = data.get("chaves")
-            if not isinstance(keys, list) or not keys or len(keys) > 200 \
-                    or not all(isinstance(k, str) and len(k) <= 120 for k in keys):
-                raise ApiError("Informe as notificações a marcar como lidas.")
-            chosen = set(keys) & current
-        # Guarda só o que ainda está ativo: a lista não cresce sem limite.
-        seen = (self.load_seen_notifications(actor_id) & current) | chosen
-        self.save_seen_notifications(actor_id, seen)
-        self.send_json({"ok": True, "total": len(current - seen)})
-
-    def build_notifications(self, actor_id):
-        """Estoque baixo/crítico por tipo, bolsas perto do vencimento ou vencidas
-        e cadastros de doadores sem atualização há mais de 1 ano."""
-        items = []
-        today = hoje()
-        if self.has_permission(actor_id, "estoque.consultar"):
-            with connect_db() as db:
-                cur = db.cursor(dictionary=True)
-                cur.execute("""
-                    SELECT ts.codigo AS tipo, COUNT(b.id) AS n
-                    FROM tipos_sanguineos ts
-                    LEFT JOIN bolsas b ON b.tipo_sanguineo_id = ts.id
-                         AND b.status = 'DISPONIVEL' AND b.data_validade >= %s
-                    WHERE ts.ativo = TRUE
-                    GROUP BY ts.codigo
-                """, (today,))
-                stock = cur.fetchall()
-                cur.execute("""
-                    SELECT
-                      SUM(data_validade BETWEEN %s AND DATE_ADD(%s, INTERVAL 7 DAY)) AS vencendo,
-                      SUM(data_validade < %s) AS vencidas
-                    FROM bolsas
-                    WHERE status IN ('DISPONIVEL','RESERVADA','QUARENTENA')
-                """, (today, today, today))
-                expiry = cur.fetchone() or {}
-                cur.close()
-            for row in sorted(stock, key=lambda r: (int(r["n"]), r["tipo"])):
-                n = int(row["n"])
-                if n <= STOCK_LOW:
-                    critical = n <= STOCK_CRITICAL
-                    items.append({
-                        "chave": f"estoque:{row['tipo']}:{n}",
-                        "tipo": "estoque", "nivel": "critico" if critical else "atencao",
-                        "titulo": f"Estoque {'crítico' if critical else 'baixo'} de {row['tipo']}",
-                        "mensagem": f"{n} {'bolsa disponível' if n == 1 else 'bolsas disponíveis'}.",
-                        "pagina": "stock",
-                    })
-            expired = int(expiry.get("vencidas") or 0)
-            expiring = int(expiry.get("vencendo") or 0)
-            if expired:
-                items.append({
-                    "chave": f"vencidas:{expired}",
-                    "tipo": "validade", "nivel": "critico",
-                    "titulo": f"{expired} {'bolsa vencida' if expired == 1 else 'bolsas vencidas'}",
-                    "mensagem": "Registre o descarte das bolsas fora da validade.", "pagina": "bags",
-                })
-            if expiring:
-                items.append({
-                    "chave": f"vencendo:{expiring}",
-                    "tipo": "validade", "nivel": "atencao",
-                    "titulo": f"{expiring} {'bolsa vence' if expiring == 1 else 'bolsas vencem'} em até 7 dias",
-                    "mensagem": "Priorize o uso dessas bolsas.", "pagina": "bags",
-                })
-        if self.has_permission(actor_id, "doadores.consultar"):
-            with connect_db() as db:
-                cur = db.cursor(dictionary=True)
-                cur.execute("""
-                    SELECT nome FROM doadores
-                    WHERE status = 'ATIVO' AND atualizado_em < DATE_SUB(NOW(), INTERVAL %s MONTH)
-                    ORDER BY atualizado_em ASC LIMIT 100
-                """, (DONOR_REVIEW_MONTHS,))
-                pending = [r["nome"] for r in cur.fetchall()]
-                cur.close()
-            if pending:
-                names = ", ".join(pending[:3]) + ("…" if len(pending) > 3 else "")
-                one = len(pending) == 1
-                items.append({
-                    "chave": f"cadastro:{len(pending)}",
-                    "tipo": "cadastro", "nivel": "atencao",
-                    "titulo": f"{len(pending)} {'cadastro de doador precisa' if one else 'cadastros de doadores precisam'} de atualização",
-                    "mensagem": f"Sem atualização há mais de 1 ano: {names}", "pagina": "donors",
-                })
-        order = {"critico": 0, "atencao": 1}
-        items.sort(key=lambda item: order.get(item["nivel"], 2))
-        return items
-
-
-    # ========================================================================
-    # 6.6 Doadores (cadastro e exclusão)
-    # ========================================================================
-    def create_donor(self, data, actor_id):
-        name = str(data.get("nome", "")).strip()
-        email = str(data.get("email", "")).strip().lower()
-        cpf = only_digits(str(data.get("cpf", "")))
-        phone = str(data.get("telefone", "")).strip()
-        birth_text = data.get("data_nascimento", "")
-        blood = str(data.get("tipo_sanguineo", "")).strip().upper()
-        weight_text = data.get("peso_kg", "")
-        note = str(data.get("observacoes", "")).strip()[:2000]
-        if not name or len(name) > 120:
-            raise ApiError("Informe o nome completo (até 120 caracteres).")
-        if not valid_email(email):
-            raise ApiError("Informe um e-mail válido.")
-        if not cpf:
-            raise ApiError("Informe o CPF.")
-        if not valid_cpf(cpf):
-            raise ApiError("CPF inválido: confira os números digitados.")
-        if not phone:
-            raise ApiError("Informe o telefone.")
-        try:
-            phone = format_phone(phone)
-        except ValueError as exc:
-            raise ApiError(str(exc))
-        address = {}
-        for column, (label, size, required) in ADDRESS_FIELDS.items():
-            value = " ".join(str(data.get(column, "") or "").split())
-            if required and not value:
-                raise ApiError(f"Informe {'o' if label in ('número', 'bairro', 'CEP', 'complemento', 'estado (UF)') else 'a'} {label}.")
-            if len(value) > size:
-                raise ApiError(f"O campo {label} aceita até {size} caracteres.")
-            address[column] = value or None
-        if address["cep"]:
-            cep = only_digits(address["cep"])
-            if len(cep) != 8:
-                raise ApiError("CEP inválido: use 00000-000.")
-            address["cep"] = f"{cep[:5]}-{cep[5:]}"
-        address["uf"] = (address["uf"] or "").upper()
-        if address["uf"] not in UFS:
-            raise ApiError("Selecione um estado (UF) válido.")
-        try:
-            birth = parse_date(birth_text, "data de nascimento")
-        except ValueError as exc:
-            raise ApiError(str(exc))
-        if birth > hoje():
-            raise ApiError("A data de nascimento não pode ser futura.")
-        if blood not in BLOOD_TYPES:
-            raise ApiError("Selecione um tipo sanguíneo válido.")
-        try:
-            weight = float(weight_text)
-        except (TypeError, ValueError):
-            raise ApiError("Informe o peso em kg.")
-        if not 1 <= weight <= 500:
-            raise ApiError("O peso deve estar entre 1 e 500 kg.")
-        # Código interno do doador, gerado pelo sistema.
-        code = "DOA-" + uuid.uuid4().hex[:10].upper()
-        if not donor_address_ready():
-            raise ApiError(
-                "O banco ainda não guarda o endereço dos doadores. Um administrador do MySQL "
-                "precisa executar scripts/migracao_002_endereco_doador.py.", 503)
-        if not donor_cpf_ready():
-            raise ApiError(
-                "O banco ainda não guarda o CPF dos doadores. Um administrador do MySQL "
-                "precisa executar scripts/migracao_004_cpf_doador.py.", 503)
-        conn = connect_db()
-        try:
-            cur = conn.cursor()
-            # Consulta prévia: mensagem clara no caso comum. A garantia definitiva é o
-            # UNIQUE uq_doadores_email (migração 001): se dois cadastros chegarem juntos,
-            # o segundo recebe IntegrityError 1062 -> 409 e nada é gravado.
-            # O e-mail é salvo sempre em minúsculas, então a comparação direta usa o índice.
-            cur.execute("SELECT id FROM doadores WHERE email=%s LIMIT 1", (email,))
-            if cur.fetchone():
-                raise ApiError("Já existe um doador cadastrado com esse e-mail.", 409)
-            # Mesmo cuidado para o CPF: a garantia final é o UNIQUE uq_doadores_cpf (migração 004).
-            cur.execute("SELECT id FROM doadores WHERE cpf=%s LIMIT 1", (cpf,))
-            if cur.fetchone():
-                raise ApiError("Já existe um doador cadastrado com esse CPF.", 409)
-            cur.execute("""
-                INSERT INTO doadores
-                (nome, cpf, data_nascimento, email, telefone, codigo_ficticio, status,
-                 observacoes, tipo_sanguineo, peso_kg,
-                 cep, logradouro, numero, complemento, bairro, cidade, uf)
-                VALUES (%s,%s,%s,%s,%s,%s,'ATIVO',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (name, cpf, birth, email, phone, code, note, blood, weight,
-                  *[address[column] for column in ADDRESS_FIELDS]))
-            donor_id = cur.lastrowid
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'CRIAR','doadores','doadores',%s,%s)
-            """, (actor_id, str(donor_id), json.dumps({"codigo_ficticio": code})))
-            conn.commit()
-            cur.close()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        self.send_json({"ok": True, "id": donor_id, "codigo_ficticio": code,
-                        "mensagem": "Doador cadastrado com sucesso."}, 201)
 
     # ========================================================================
     # 6.10 Suporte (aba "Suporte": mensagem por e-mail para a equipe)
@@ -1714,201 +902,6 @@ class Handler(BaseHTTPRequestHandler):
             cur.close()
         self.send_json({"ok": True, "protocolo": protocol,
                         "mensagem": f"Mensagem enviada! Protocolo {protocol}. A resposta chegará no seu e-mail."})
-
-    def delete_donor(self, donor_id, actor_id):
-        """Exclui o cadastro do doador. Se ele já tiver doações ou agendamentos
-        registrados, o MySQL bloqueia (chave estrangeira) e nada é apagado."""
-        conn = connect_db()
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT id, codigo_ficticio FROM doadores WHERE id=%s FOR UPDATE", (donor_id,))
-            donor = cur.fetchone()
-            if not donor:
-                raise ApiError("Doador não encontrado.", 404)
-            cur.execute("DELETE FROM doadores WHERE id=%s", (donor_id,))
-            # A auditoria guarda só o código interno, não nome nem contato.
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'EXCLUIR','doadores','doadores',%s,%s)
-            """, (actor_id, str(donor_id), json.dumps({"codigo_ficticio": donor["codigo_ficticio"]})))
-            conn.commit()
-            cur.close()
-        except mysql.connector.IntegrityError as exc:
-            conn.rollback()
-            if getattr(exc, "errno", None) == ROW_IS_REFERENCED:
-                raise ApiError("Este doador tem doações ou agendamentos registrados e não pode ser excluído.", 409)
-            raise
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        self.send_json({"ok": True, "mensagem": "Doador excluído."})
-
-
-    # ========================================================================
-    # 6.8 Contas de acesso e profissionais
-    # ========================================================================
-    def list_access_accounts(self):
-        """Lista contas e perfis disponíveis; o endpoint já exige ADMINISTRADOR."""
-        with connect_db() as db:
-            cur = db.cursor(dictionary=True)
-            cur.execute("""
-                SELECT u.id, u.nome, u.email, u.status, p.nome AS perfil
-                FROM usuarios u
-                LEFT JOIN usuario_perfis up ON up.usuario_id = u.id
-                LEFT JOIN perfis p ON p.id = up.perfil_id
-                ORDER BY u.id
-            """)
-            accounts = cur.fetchall()
-            cur.execute("SELECT id, nome FROM perfis ORDER BY id")
-            profiles = cur.fetchall()
-            cur.close()
-        return self.send_json({"usuarios": accounts, "perfis": profiles})
-
-    def create_access_account(self, data, actor_id):
-        """Cria usuário de login e associa exatamente um dos quatro perfis do sistema."""
-        name = str(data.get("nome", "")).strip()
-        email = str(data.get("email", "")).strip().lower()
-        password = data.get("senha", "")
-        profile_name = str(data.get("perfil", "")).strip().upper()
-        allowed_profiles = {
-            "ADMINISTRADOR", "RESPONSAVEL_TECNICO", "OPERADOR_ESTOQUE", "CONSULTA"
-        }
-        if not name or len(name) > 120:
-            raise ApiError("Informe o nome completo (até 120 caracteres).")
-        if not valid_email(email):
-            raise ApiError("Informe um e-mail válido.")
-        if not isinstance(password, str) or len(password) < 10 or len(password) > 128:
-            raise ApiError("A senha deve ter entre 10 e 128 caracteres.")
-        if not (re.search(r"[A-Za-z]", password) and re.search(r"\d", password)):
-            raise ApiError("A senha deve conter letras e números.")
-        if profile_name not in allowed_profiles:
-            raise ApiError("Selecione um dos quatro perfis válidos.")
-
-        conn = connect_db()
-        try:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT id FROM usuarios WHERE LOWER(email)=%s LIMIT 1", (email,))
-            if cur.fetchone():
-                raise ApiError("Já existe uma conta cadastrada com esse e-mail.", 409)
-            cur.execute("SELECT id FROM perfis WHERE nome=%s LIMIT 1", (profile_name,))
-            profile = cur.fetchone()
-            if not profile:
-                raise ApiError("O perfil selecionado não existe no banco de dados.", 400)
-            # Se dois pedidos chegarem juntos, o UNIQUE uq_usuarios_email bloqueia o
-            # segundo (IntegrityError 1062 -> 409) e nada é gravado (rollback).
-            cur.execute("""
-                INSERT INTO usuarios
-                    (nome, email, senha_hash, status, tentativas_falhas, criado_em, atualizado_em)
-                VALUES (%s, %s, %s, 'ATIVO', 0, NOW(), NOW())
-            """, (name, email, password_hash(password)))
-            user_id = cur.lastrowid
-            cur.execute("""
-                INSERT INTO usuario_perfis (usuario_id, perfil_id, atribuido_por, atribuido_em)
-                VALUES (%s, %s, %s, NOW())
-            """, (user_id, profile["id"], actor_id))
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'CRIAR','usuarios','usuarios',%s,%s)
-            """, (actor_id, str(user_id), json.dumps({"perfil": profile_name})))
-            conn.commit()
-            cur.close()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        return self.send_json({
-            "ok": True,
-            "mensagem": "Conta de acesso criada com sucesso.",
-            "id": user_id
-        }, 201)
-
-    def create_professional(self, data, actor_id):
-        name = str(data.get("nome", "")).strip()
-        email = str(data.get("email", "")).strip().lower()
-        role = str(data.get("cargo", "")).strip()
-        council = str(data.get("registro_profissional", "")).strip()
-        phone = str(data.get("telefone", "")).strip()
-        if not name or len(name) > 120:
-            raise ApiError("Informe o nome completo (até 120 caracteres).")
-        if not valid_email(email):
-            raise ApiError("Informe um e-mail válido.")
-        if not role or len(role) > 100:
-            raise ApiError("Selecione a função profissional.")
-        if len(council) > 80:
-            raise ApiError("O conselho profissional aceita até 80 caracteres.")
-        if phone:
-            try:
-                phone = format_phone(phone)
-            except ValueError as exc:
-                raise ApiError(str(exc))
-        if not (schema_has("profissionais", "email") and schema_has("profissionais", "uq_profissionais_email")):
-            raise ApiError(
-                "O banco ainda não guarda o e-mail dos profissionais. Um administrador do MySQL "
-                "precisa executar scripts/migracao_001_email_unico.py.", 503)
-        conn = connect_db()
-        try:
-            cur = conn.cursor()
-            # Consulta prévia para mensagem clara; o UNIQUE uq_profissionais_email
-            # garante a regra mesmo com cadastros simultâneos (1062 -> 409).
-            cur.execute("SELECT id FROM profissionais WHERE email=%s LIMIT 1", (email,))
-            if cur.fetchone():
-                raise ApiError("Já existe um profissional cadastrado com esse e-mail.", 409)
-            if council:
-                cur.execute("SELECT id FROM profissionais WHERE registro_profissional=%s LIMIT 1", (council,))
-                if cur.fetchone():
-                    raise ApiError("Já existe um profissional cadastrado com esse registro profissional.", 409)
-            # O formulário cadastra os dados profissionais, mas não cria uma conta de
-            # acesso. Por isso usuario_id fica NULL (não associar à conta do administrador).
-            cur.execute("""
-                INSERT INTO profissionais
-                (usuario_id, nome, email, registro_profissional, cargo, telefone, status)
-                VALUES (NULL,%s,%s,%s,%s,%s,'ATIVO')
-            """, (name, email, council or None, role, phone or None))
-            professional_id = cur.lastrowid
-            cur.execute("""
-                INSERT INTO historico_auditoria
-                (usuario_id,acao,modulo,entidade,entidade_id,detalhes_json)
-                VALUES (%s,'CRIAR','profissionais','profissionais',%s,%s)
-            """, (actor_id, str(professional_id), json.dumps({"cargo": role})))
-            conn.commit()
-            cur.close()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-        self.send_json({"ok": True, "id": professional_id,
-                        "mensagem": "Profissional cadastrado com sucesso."}, 201)
-
-
-    # ========================================================================
-    # 6.5 Estoque: histórico de movimentações
-    # ========================================================================
-    def list_movements(self):
-        with connect_db() as db:
-            cur = db.cursor(dictionary=True)
-            cur.execute("""
-                SELECT m.id,m.bolsa_id,b.codigo,m.status_anterior,m.status_novo,
-                       u.nome AS responsavel,COALESCE(m.motivo,'') AS observacao,
-                       m.criado_em
-                FROM movimentacoes_estoque m
-                JOIN bolsas b ON b.id=m.bolsa_id
-                JOIN usuarios u ON u.id=m.responsavel_id
-                ORDER BY m.id DESC LIMIT 200
-            """)
-            rows = cur.fetchall()
-            cur.close()
-        for row in rows:
-            row["criado_em"] = serialize_date(row.get("criado_em"))
-            row["responsavel"] = row.get("responsavel") or "Operador"
-            row["observacao"] = row.get("observacao") or ""
-        self.send_json(rows)
-
 
     # ========================================================================
     # 6.9 Arquivos das telas (pasta static/)
@@ -2005,7 +998,6 @@ def auto_install_schema() -> bool:
                 cur.execute(command)
             print(f"  OK: {path.name} ({len(commands)} comandos)")
         cur.close()
-        _SCHEMA_OK.clear()
         print("Estrutura instalada. Crie o primeiro administrador com: python scripts/criar_administrador.py")
         return True
     finally:
@@ -2031,18 +1023,9 @@ def main():
         conn = connect_db()
         conn.close()
         auto_install_schema()
-        pending = pending_migration_001()
-        if pending:
-            print("AVISO: migração 001 (e-mail único) pendente:", ", ".join(pending))
-            print("  Execute: python scripts/migracao_001_email_unico.py  (com usuário administrativo)")
-        pending = pending_migration_002()
-        if pending:
-            print("AVISO: migração 002 (endereço do doador) pendente:", ", ".join(pending))
-            print("  Execute: python scripts/migracao_002_endereco_doador.py  (com usuário administrativo)")
-        pending = pending_migration_004()
-        if pending:
-            print("AVISO: migração 004 (CPF do doador) pendente:", ", ".join(pending))
-            print("  Execute: python scripts/migracao_004_cpf_doador.py  (com usuário administrativo)")
+        if not v2_instalado():
+            print("AVISO: a migração 005 (HemoFlow 2.0) não foi aplicada neste banco.")
+            print("  Execute: python scripts/migracao_005_v2.py  (com usuário administrativo)")
         server = HemoFlowServer((HOST, PORT), Handler)
     except OSError as exc:
         print(f"Não foi possível usar a porta {PORT}: {exc}")

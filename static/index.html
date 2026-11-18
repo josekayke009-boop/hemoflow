@@ -1,29 +1,30 @@
 <!doctype html>
 <!--
-  HemoFlow — página única do sistema.
-  As telas são montadas pelo js/app.js; os estilos ficam em css/estilos.css.
+  HemoFlow 2.0 — página única do sistema (PWA).
+  Doador, banco de sangue, parceiro e admin usam o mesmo endereço; o js/app.js monta
+  a área certa conforme o perfil de quem entrou. Estilos em css/app.css e css/login-3d.css.
+  Concepção da versão 2.0 e proposta do novo front-end: João Manoel da Silva Oliveira.
 -->
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#8b0a1a" />
-    <meta
-      name="description"
-      content="HemoFlow — gestão de doadores, bolsas de sangue e estoque do hemocentro."
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#b0102a" />
+    <meta name="description" content="HemoFlow — Doe. Volte. Salve vidas. Veja onde seu tipo sanguíneo faz falta e agende sua doação." />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="HemoFlow" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>HemoFlow — Gestão de hemocomponentes</title>
+    <title>HemoFlow — Doe. Volte. Salve vidas.</title>
     <link rel="icon" type="image/png" href="/img/hemoflow-icone.png" />
-    <link rel="stylesheet" href="/css/estilos.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="/css/app.css" />
+    <link rel="stylesheet" href="/css/login-3d.css" />
   </head>
   <body class="auth-required">
-    <!-- Fundo animado da tela de login: glóbulos vermelhos em profundidade + logo em 3D -->
+    <!-- Fundo animado do login: glóbulos vermelhos em profundidade + H em 3D com o sangue correndo -->
     <div class="login-bg" aria-hidden="true">
       <canvas id="login-cells"></canvas>
       <div class="login-hero" id="login-hero">
@@ -225,308 +226,121 @@
           </svg>
         </div>
         <div class="login-hero-text">
-          <strong>HemoFlow</strong><span>Gestão inteligente de hemocentro</span>
+          <strong>HemoFlow</strong><span>Doe. Volte. Salve vidas.</span>
         </div>
       </div>
     </div>
-    <!-- TELA DE LOGIN (e-mail, senha e link "Esqueceu sua senha?") -->
-    <section id="login-screen" class="login-screen">
-      <form id="login-form" class="login-card">
+    <!-- ENTRADA: login (senha ou código por e-mail), cadastro de doador e recuperação de senha -->
+    <main id="entrada" class="login-screen">
+      <div class="login-card" id="cartao-entrada">
         <div class="login-brand">
-          <img class="brand-logo" src="/img/hemoflow-icone.png" alt="Logo HemoFlow" />
-          <div><strong>HemoFlow</strong><small>Gestão de hemocentro</small></div>
+          <img class="brand-logo" src="/img/hemoflow-icone.png" alt="" width="48" height="48" />
+          <div><strong>HemoFlow</strong><small>Doe. Volte. Salve vidas.</small></div>
         </div>
-        <p class="eyebrow">ACESSO AO SISTEMA</p>
-        <h1>Bem-vindo de volta</h1>
-        <p class="muted">Entre com sua conta para acessar o painel.</p>
-        <label
-          >E-mail
-          <input
-            id="login-email"
-            name="email"
-            type="email"
-            autocomplete="username"
-            placeholder="nome@exemplo.com"
-            required
-          />
-        </label>
-        <label
-          >Senha
-          <input
-            id="login-password"
-            name="senha"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Digite sua senha"
-            required
-          />
-        </label>
-        <div id="login-error" class="form-error hidden" role="alert"></div>
-        <button id="login-submit" class="btn btn-primary full" type="submit">Entrar no sistema</button>
-        <div class="login-footer">
-          <a href="#" id="forgot-password">Esqueceu sua senha?</a>
-          <p>HemoFlow · Gestão segura de hemocentro</p>
-        </div>
-      </form>
-    </section>
-    <!-- TELA DE RECUPERAÇÃO DE SENHA (pedir o link / criar a nova senha) -->
-    <section id="recovery-screen" class="login-screen" style="display: none">
-      <form id="recovery-form" class="login-card">
-        <div class="login-brand">
-          <img class="brand-logo" src="/img/hemoflow-icone.png" alt="Logo HemoFlow" />
-          <div><strong>HemoFlow</strong><small>Recuperação de senha</small></div>
-        </div>
-        <p class="eyebrow">RECUPERAR ACESSO</p>
-        <h1 id="recovery-title">Esqueceu sua senha?</h1>
-        <p id="recovery-description" class="muted">
-          Informe seu e-mail cadastrado para receber um link de recuperação.
-        </p>
-        <label id="recovery-email-label"
-          >E-mail
-          <input
-            id="recovery-email"
-            type="email"
-            autocomplete="email"
-            placeholder="nome@exemplo.com"
-            required
-          />
-        </label>
-        <label id="recovery-password-label" class="hidden"
-          >Nova senha
-          <input
-            id="recovery-password"
-            type="password"
-            autocomplete="new-password"
-            minlength="10"
-            maxlength="128"
-            placeholder="Mínimo de 10 caracteres, com letras e números"
-          />
-        </label>
-        <label id="recovery-confirm-label" class="hidden"
-          >Confirmar nova senha
-          <input
-            id="recovery-confirm"
-            type="password"
-            autocomplete="new-password"
-            minlength="10"
-            maxlength="128"
-            placeholder="Digite a nova senha de novo"
-          />
-        </label>
-        <div id="recovery-error" class="form-error hidden" role="alert"></div>
-        <div id="recovery-success" class="form-success hidden" role="status"></div>
-        <button id="recovery-submit" class="btn btn-primary full" type="submit">
-          Enviar link de recuperação
-        </button>
-        <div class="login-footer">
-          <a href="#" id="back-to-login">Voltar para o login</a>
-          <p>HemoFlow · Gestão segura de hemocentro</p>
-        </div>
-      </form>
-    </section>
 
-    <!-- MENU LATERAL (no celular vira a barra inferior). Cada item abre uma tela pelo data-page. -->
-    <aside class="sidebar">
-      <a class="brand" href="#overview" aria-label="HemoFlow início">
-        <span class="brand-mark brand-mark-logo"><img src="/img/hemoflow-icone.png" alt="" /></span>
-        <span><b>HemoFlow</b><small>Gestão de hemocentro</small></span>
-      </a>
-      <div class="side-label">MENU PRINCIPAL</div>
-      <nav id="main-nav">
-        <a class="nav active" href="#registrations" data-page="registrations"
-          ><span class="nav-icon">♙</span>Cadastros</a
-        >
-        <a class="nav" href="#overview" data-page="overview"><span class="nav-icon">▦</span>Visão geral</a>
-        <a class="nav" href="#stock" data-page="stock"><span class="nav-icon">♢</span>Estoque de sangue</a>
-        <a class="nav" href="#donors" data-page="donors"><span class="nav-icon">♧</span>Doadores</a>
-        <a class="nav" href="#movements" data-page="movements"
-          ><span class="nav-icon">⌁</span>Movimentações</a
-        >
-        <a class="nav" href="#bags" data-page="bags"><span class="nav-icon">▤</span>Registro de bolsas</a>
-        <a class="nav" href="#alerts" data-page="alerts"><span class="nav-icon">⚠</span>Quadro de atenção</a>
-        <a class="nav" href="#reports" data-page="reports"><span class="nav-icon">▤</span>Relatórios</a>
-        <!-- No celular o rodapé do menu some: Suporte e Configurações aparecem aqui -->
-        <a class="nav nav-mobile-only" href="#support" data-page="support"
-          ><span class="nav-icon">✉</span>Suporte</a
-        >
-        <a class="nav nav-mobile-only" href="#settings" data-page="settings"
-          ><span class="nav-icon">⚙</span>Configurações</a
-        >
-        <a class="nav hidden" id="admin-accounts-nav" href="#accessAccounts" data-page="accessAccounts"
-          ><span class="nav-icon">♙</span>Contas de acesso</a
-        >
-      </nav>
-      <div class="sidebar-bottom">
-        <a class="nav" href="#support" data-page="support"><span class="nav-icon">✉</span>Suporte</a>
-        <a class="nav" href="#settings" data-page="settings"><span class="nav-icon">⚙</span>Configurações</a>
-        <div class="sidebar-note">
-          <span class="pulse"></span>
-          <div><b>Sistema operacional</b><small>Banco de dados conectado</small></div>
-        </div>
-        <div class="side-footer">HEMOFLOW</div>
-      </div>
-    </aside>
+        <!-- Login -->
+        <section id="tela-login">
+          <h1>Bem-vindo</h1>
+          <p class="muted">Entre para ver onde sua doação faz falta.</p>
+          <div class="abas" role="tablist">
+            <button type="button" class="aba ativa" data-modo="senha" role="tab" aria-selected="true">Com senha</button>
+            <button type="button" class="aba" data-modo="codigo" role="tab" aria-selected="false">Código por e-mail</button>
+          </div>
+          <form id="form-login" novalidate>
+            <label>E-mail <input name="email" type="email" autocomplete="username" required placeholder="nome@exemplo.com" /></label>
+            <label class="so-senha">Senha
+              <span class="campo-senha"><input name="senha" type="password" autocomplete="current-password" placeholder="Sua senha" />
+                <button type="button" class="ver-senha" aria-label="Mostrar senha">Ver</button></span>
+            </label>
+            <label class="so-codigo hidden">Código de 6 dígitos
+              <input name="codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" />
+            </label>
+            <p class="erro hidden" role="alert"></p>
+            <button class="btn btn-primario cheio" type="submit" id="botao-login">Entrar</button>
+            <button class="btn btn-claro cheio so-codigo hidden" type="button" id="botao-enviar-codigo">Enviar código para o e-mail</button>
+          </form>
+          <div class="entrada-links">
+            <a href="#cadastro" id="link-cadastro">Quero ser doador · criar conta</a>
+            <a href="#esqueci" id="link-esqueci">Esqueci minha senha</a>
+          </div>
+        </section>
 
-    <!-- ÁREA PRINCIPAL -->
-    <main class="main">
-      <!-- Topo: título da tela, busca, sino de notificações, "Nova movimentação" e "Sair" -->
-      <header class="topbar">
-        <div class="mobile-brand">
-          <span class="brand-mark brand-mark-logo"><img src="/img/hemoflow-icone.png" alt="" /></span>
-          HemoFlow
-        </div>
-        <div class="topbar-title">
-          <strong id="top-title">Cadastros</strong
-          ><small id="top-subtitle">Profissionais licenciados e doadores</small>
-        </div>
-        <div class="topbar-actions">
-          <label class="global-search"
-            ><span>⌕</span><input id="global-search" type="search" placeholder="Buscar..."
-          /></label>
-          <div class="notif-wrap">
-            <button
-              class="icon-button"
-              id="notifications-button"
-              aria-label="Notificações"
-              aria-haspopup="true"
-              aria-expanded="false"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="22"
-                height="22"
-                aria-hidden="true"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg
-              ><i id="notif-count" class="hidden">0</i>
-            </button>
-            <div id="notif-panel" class="notif-panel hidden" role="dialog" aria-label="Notificações"></div>
-          </div>
-          <button class="btn btn-primary" id="new-movement"><span>＋</span> Nova movimentação</button>
-          <div class="user-chip">
-            <span id="operator-avatar" class="avatar">HF</span><span id="operator-label">Usuário</span
-            ><button id="logout-button" class="logout-button" type="button">Sair</button>
-          </div>
-        </div>
-      </header>
-      <!-- Aviso de "Sem conexão" e avisos rápidos (toast) -->
-      <div id="offline-banner" class="offline-banner hidden" role="status" aria-live="polite"></div>
-      <div id="toast" class="toast hidden" role="status" aria-live="polite">
-        <span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span>
+        <!-- Cadastro do doador -->
+        <section id="tela-cadastro" class="hidden">
+          <h1>Criar conta de doador</h1>
+          <p class="muted">Leva 2 minutos. Seus dados só são usados para te avisar quando seu sangue fizer falta.</p>
+          <form id="form-cadastro" novalidate>
+            <label>Nome completo <input name="nome" autocomplete="name" required /></label>
+            <div class="duas">
+              <label>CPF <input name="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" required /></label>
+              <label>Nascimento <input name="data_nascimento" type="date" required /></label>
+            </div>
+            <div class="duas">
+              <label>Tipo sanguíneo
+                <select name="tipo_sanguineo" required>
+                  <option value="">Escolha</option>
+                  <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+                  <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+                </select>
+              </label>
+              <label>Sexo no documento
+                <select name="sexo" required><option value="">Escolha</option><option value="F">Feminino</option><option value="M">Masculino</option></select>
+              </label>
+            </div>
+            <div class="duas">
+              <label>Cidade <input name="cidade" autocomplete="address-level2" required /></label>
+              <label>Estado <select name="uf" required class="lista-ufs"></select></label>
+            </div>
+            <label>Celular (opcional) <input name="telefone" type="tel" autocomplete="tel" placeholder="(81) 90000-0000" /></label>
+            <label>Última doação (se lembrar) <input name="ultima_doacao" type="date" /></label>
+            <div id="bloco-responsavel" class="aviso-suave hidden">
+              <strong>Você tem 16 ou 17 anos.</strong> Precisamos do consentimento do seu responsável.
+              <label>Nome do responsável <input name="responsavel_nome" /></label>
+              <label class="check"><input type="checkbox" name="responsavel_consentiu" /> Meu responsável leu e autorizou meu cadastro.</label>
+            </div>
+            <label>E-mail <input name="email" type="email" autocomplete="email" required /></label>
+            <label>Crie uma senha
+              <span class="campo-senha"><input name="senha" type="password" autocomplete="new-password" minlength="8" required placeholder="8+ caracteres, letras e números" />
+                <button type="button" class="ver-senha" aria-label="Mostrar senha">Ver</button></span>
+            </label>
+            <label class="check"><input type="checkbox" name="consentimento_convocacao" checked /> Quero ser avisado quando bancos de sangue da minha região precisarem do meu tipo.</label>
+            <label class="check"><input type="checkbox" name="aceite_termos" /> Li e aceito os termos de uso e a política de privacidade (LGPD).</label>
+            <p class="erro hidden" role="alert"></p>
+            <button class="btn btn-primario cheio" type="submit">Criar minha conta</button>
+          </form>
+          <div class="entrada-links"><a href="#login" class="voltar-login">Já tenho conta · entrar</a></div>
+        </section>
+
+        <!-- Recuperação de senha -->
+        <section id="tela-esqueci" class="hidden">
+          <h1 id="titulo-esqueci">Esqueceu a senha?</h1>
+          <p class="muted" id="texto-esqueci">Informe seu e-mail e enviaremos um link para criar uma nova senha.</p>
+          <form id="form-esqueci" novalidate>
+            <label class="so-pedido">E-mail <input name="email" type="email" autocomplete="email" /></label>
+            <label class="so-nova hidden">Nova senha
+              <span class="campo-senha"><input name="senha" type="password" autocomplete="new-password" placeholder="10+ caracteres, letras e números" />
+                <button type="button" class="ver-senha" aria-label="Mostrar senha">Ver</button></span>
+            </label>
+            <p class="erro hidden" role="alert"></p>
+            <p class="sucesso hidden" role="status"></p>
+            <button class="btn btn-primario cheio" type="submit">Continuar</button>
+          </form>
+          <div class="entrada-links"><a href="#login" class="voltar-login">Voltar ao login</a></div>
+        </section>
       </div>
-      <!-- Conteúdo da tela atual: preenchido pelo js/app.js (função renderPage) -->
-      <section id="page-content" class="page-content"></section>
     </main>
 
-    <!-- JANELA "REGISTRAR BOLSA" -->
-    <dialog id="bag-dialog" class="modal">
-      <form id="bag-form" method="dialog">
-        <div class="modal-heading">
-          <div>
-            <p class="eyebrow">ESTOQUE DE SANGUE</p>
-            <h2>Registrar bolsa</h2>
-            <p class="muted">Preencha os dados da nova bolsa.</p>
-          </div>
-          <button type="button" class="close-button" id="close-modal" aria-label="Fechar">×</button>
-        </div>
-        <div class="form-grid">
-          <label
-            >Código da bolsa <small>Gerado automaticamente</small><input value="Gerado ao salvar" disabled
-          /></label>
-          <label
-            >Tipo sanguíneo *<select id="bag-blood" required>
-              <option value="">Selecione</option>
-              <option>A+</option>
-              <option>A-</option>
-              <option>B+</option>
-              <option>B-</option>
-              <option>AB+</option>
-              <option>AB-</option>
-              <option>O+</option>
-              <option>O-</option>
-            </select></label
-          >
-          <label
-            >Volume (ml) *<input id="bag-volume" type="number" min="1" max="1000" value="450" required
-          /></label>
-          <label>Localização *<input id="bag-location" placeholder="Ex.: Refrigerador A" required /></label>
-          <label>Data de coleta *<input id="bag-collected" type="date" required /></label>
-          <label>Data de validade *<input id="bag-expiry" type="date" required /></label>
-          <label
-            >Status inicial *<select id="bag-status">
-              <option value="DISPONIVEL">Disponível</option>
-              <option value="QUARENTENA">Quarentena</option>
-            </select></label
-          >
-          <label class="span-2"
-            >Observações<textarea id="bag-notes" rows="3" placeholder="Observações opcionais"></textarea>
-          </label>
-        </div>
-        <div id="bag-error" class="form-error hidden" role="alert"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" id="cancel-modal">Cancelar</button
-          ><button class="btn btn-primary" id="save-bag" type="submit">Salvar bolsa</button>
-        </div>
-      </form>
-    </dialog>
+    <!-- SISTEMA (montado pelo js conforme o perfil: doador, banco de sangue, parceiro ou admin) -->
+    <div id="sistema" class="hidden"></div>
 
-    <!-- JANELA "NOVA MOVIMENTAÇÃO" (mudar a situação de uma bolsa) -->
-    <dialog id="transition-dialog" class="modal">
-      <form id="transition-form" method="dialog">
-        <div class="modal-heading">
-          <div>
-            <p class="eyebrow">ATUALIZAÇÃO DE ESTOQUE</p>
-            <h2>Nova movimentação</h2>
-            <p class="muted" id="transition-bag-label">Altere o status da bolsa selecionada.</p>
-          </div>
-          <button type="button" class="close-button" id="close-transition" aria-label="Fechar">×</button>
-        </div>
-        <input id="transition-id" type="hidden" />
-        <div class="form-grid">
-          <label
-            >Novo status *<select id="transition-status" required>
-              <option value="RESERVADA">Reservada</option>
-              <option value="DISPONIVEL">Disponível</option>
-              <option value="TRANSFUNDIDA">Transfundida</option>
-              <option value="DESCARTADA">Descartada</option>
-              <option value="QUARENTENA">Quarentena</option>
-            </select></label
-          >
-          <label class="span-2"
-            >Observação<textarea
-              id="transition-note"
-              rows="3"
-              placeholder="Motivo da movimentação"
-            ></textarea>
-          </label>
-        </div>
-        <div id="transition-error" class="form-error hidden" role="alert"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" id="cancel-transition">Cancelar</button
-          ><button class="btn btn-primary" type="submit">Confirmar movimentação</button>
-        </div>
-      </form>
+    <!-- Janela (modal) reutilizável e avisos rápidos -->
+    <dialog id="janela" aria-labelledby="janela-titulo">
+      <form method="dialog" class="janela-topo"><h2 id="janela-titulo"></h2><button class="icone-btn" aria-label="Fechar">✕</button></form>
+      <div id="janela-corpo"></div>
     </dialog>
-    <!-- JANELA DE CONFIRMAÇÃO (ex.: "Excluir doador?") -->
-    <dialog id="confirm-dialog" class="modal confirm-modal" aria-labelledby="confirm-title">
-      <form method="dialog">
-        <div class="confirm-icon" id="confirm-icon" aria-hidden="true">!</div>
-        <h2 id="confirm-title">Confirmar</h2>
-        <p id="confirm-message" class="muted"></p>
-        <div class="modal-actions">
-          <button value="cancel" class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
-          <button value="ok" class="btn btn-primary" id="confirm-ok">Confirmar</button>
-        </div>
-      </form>
-    </dialog>
-    <!-- SCRIPTS: animação do login e lógica das telas -->
+    <div id="toasts" aria-live="polite"></div>
+
     <script src="/js/fundo-login.js" defer></script>
-    <script src="/js/app.js" defer></script>
+    <script type="module" src="/js/app.js"></script>
   </body>
 </html>
