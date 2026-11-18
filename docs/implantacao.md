@@ -35,7 +35,9 @@ Navegador ──HTTPS──► Proxy do Railway (certificado automático)
 | `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD` | conta Gmail e **senha de app** de 16 letras, para a recuperação de senha e a aba Suporte |
 | `HEMOFLOW_BREVO_API_KEY` | chave da API do Brevo. **Obrigatória na nuvem**: o Railway (plano de teste) bloqueia as portas de e-mail (SMTP), então o envio é feito pelo Brevo, por HTTPS |
 | `HEMOFLOW_EMAIL_FROM` | remetente dos e-mails (precisa estar verificado no Brevo); sem ela, usa `HEMOFLOW_EMAIL_USER` |
-| `HEMOFLOW_SUPPORT_EMAIL` | (opcional) caixa que recebe as mensagens da aba Suporte; sem ela, vão para o remetente |
+| `HEMOFLOW_SUPPORT_EMAIL` | (opcional) caixa que recebe as mensagens da aba Ajuda/Suporte; sem ela, vão para o remetente |
+| `HEMOFLOW_DEMO_SENHA` | (versão 2.0) senha das contas de **demonstração** na nuvem, 12+ caracteres. Só é usada por `python dados_demo.py`. Fica só no Railway, nunca no GitHub |
+| `HEMOFLOW_EMAIL_CONVOCACAO` | (opcional) `1` para também mandar e-mail nas convocações. Nunca envia para endereços `@exemplo.com` |
 
 No painel (*Settings*) também estão configurados: verificação de saúde em `/healthz` e porta de destino `8080`.
 
@@ -55,7 +57,7 @@ Os doadores e bolsas do banco local **não** foram copiados para a nuvem.
 
 | | Computador | Nuvem |
 |---|---|---|
-| Iniciar | `.\iniciar_hemoflow.ps1` | automático a cada envio ao GitHub |
+| Iniciar | `python scripts/dev.py` (ou `.\iniciar_hemoflow.ps1`) | automático a cada envio ao GitHub |
 | `HEMOFLOW_ENV` | `development` (padrão) | `production` |
 | Endereço | http://127.0.0.1:8000 | https://hemoflow-production.up.railway.app |
 | Banco | MySQL do computador | MySQL do Railway |
@@ -65,13 +67,27 @@ Os doadores e bolsas do banco local **não** foram copiados para a nuvem.
 
 1. Alterar e testar no computador:
    ```powershell
-   python -m unittest discover -s tests -v
+   python -m unittest tests.test_regras tests.test_seguranca tests.test_recuperacao tests.test_email -v
    .\iniciar_hemoflow.ps1
    ```
 2. `git add`, `git commit` e `git push`. O Railway reconstrói a imagem e publica sozinho (cerca de 1 a 2 minutos).
 3. Se alterou arquivos de `static/`, aumente o `VERSION` em `static/sw.js` para o aplicativo instalado baixar a versão nova.
 4. Migração 004 (CPF) na nuvem, depois do backup: no *Console* do serviço `hemoflow`, `python scripts/migracao_004_cpf_doador.py --usar-variaveis`.
 5. Mudanças de estrutura do banco: **backup primeiro**, depois o script de migração (como `scripts/migracao_002_endereco_doador.py`) apontado para o banco da nuvem.
+
+## 5.1 Passar a nuvem para a versão 2.0
+
+1. **Backup do banco da nuvem** (seção 6). Sem backup, não continue.
+2. Enviar a branch `v2` para a `main` (`git push`). O Railway publica a versão nova; ao iniciar, o servidor avisa no log se a migração 005 ainda não foi aplicada.
+3. No *Console* do serviço `hemoflow`:
+   ```bash
+   python scripts/migracao_005_v2.py --verificar --usar-variaveis   # mostra o que falta
+   python scripts/migracao_005_v2.py --usar-variaveis               # aplica (só acrescenta; nada é apagado)
+   ```
+4. (Opcional, para apresentação) criar a variável `HEMOFLOW_DEMO_SENHA` no Railway e, no *Console*, rodar `python dados_demo.py`. São criados bancos, parceiros e doadores **fictícios** (marcados com “(demo)” e e-mails `@exemplo.com`). O admin de demonstração **não** é criado na nuvem e contas de administrador nunca são apagadas.
+5. Conferir `/healthz`, entrar com o admin real e com uma conta demo.
+
+As tabelas da versão 1 (bolsas, movimentações, profissionais) continuam no banco, sem uso, até uma migração 006 de limpeza feita com backup.
 
 ## 6. Backup e restauração
 

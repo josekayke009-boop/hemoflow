@@ -2,18 +2,33 @@
 
 Nada aqui é real: nomes, e-mails (@exemplo.com) e CPFs gerados são inventados.
 Uso: no modo de desenvolvimento, POST /api/dev/semear (só funciona fora de produção e a partir
-do próprio computador). Na nuvem: python -c "import servidor, dados_demo; dados_demo.semear()"
-no console do Railway. Pode rodar mais de uma vez: apaga e recria só os dados de demonstração.
+do próprio computador). Na nuvem (console do Railway):  python dados_demo.py
+Pode rodar mais de uma vez: apaga e recria só os dados de demonstração.
 
-Contas de demonstração: todas usam a senha SENHA_DEMO abaixo.
+Senha das contas de demonstração:
+  - no computador: SENHA_DEMO abaixo;
+  - na NUVEM: obrigatoriamente a variável HEMOFLOW_DEMO_SENHA (definida no Railway, fora do GitHub),
+    e NÃO é criada a conta admin de demonstração — este código é público, então uma senha escrita
+    aqui não pode abrir contas no servidor da internet.
 """
+import os
 import random
 from datetime import date, datetime, timedelta
 
 import regras
 import rotas_v2 as R
 
-SENHA_DEMO = "HemoFlow2026"
+SENHA_DEMO = "HemoFlow2026"  # só para o computador local
+
+
+def senha_das_contas():
+    """Senha das contas demo: local usa SENHA_DEMO; na nuvem, exige HEMOFLOW_DEMO_SENHA (forte)."""
+    if not R.S.PRODUCTION:
+        return SENHA_DEMO
+    senha = os.environ.get("HEMOFLOW_DEMO_SENHA", "")
+    if len(senha) < 12 or senha == SENHA_DEMO:
+        raise SystemExit("Na nuvem, defina HEMOFLOW_DEMO_SENHA no Railway (12+ caracteres, diferente da senha local).")
+    return senha
 MARCA = "(demo)"
 
 BANCOS = [
@@ -68,8 +83,14 @@ def limpar(cur):
     for p in [r["id"] for r in cur.fetchall()]:
         cur.execute("UPDATE usuarios SET parceiro_id=NULL WHERE parceiro_id=%s", (p,))
         cur.execute("DELETE FROM parceiros WHERE id=%s", (p,))
-    cur.execute("SELECT id FROM usuarios WHERE email LIKE %s", ("%@exemplo.com",))
+    # Contas de demonstração: @exemplo.com, NUNCA uma conta de administrador (protege o admin real da nuvem).
+    cur.execute("""SELECT u.id FROM usuarios u WHERE u.email LIKE %s AND NOT EXISTS (
+                       SELECT 1 FROM usuario_perfis up JOIN perfis pf ON pf.id=up.perfil_id
+                       WHERE up.usuario_id=u.id AND pf.nome='ADMINISTRADOR')""", ("%@exemplo.com",))
     usuarios = [r["id"] for r in cur.fetchall()]
+    if not R.S.PRODUCTION:  # no computador, o admin de demonstração também é recriado
+        cur.execute("SELECT id FROM usuarios WHERE email='admin@exemplo.com'")
+        usuarios += [r["id"] for r in cur.fetchall()]
     if usuarios:
         marc = ",".join(["%s"] * len(usuarios))
         cur.execute(f"DELETE FROM avisos WHERE usuario_id IN ({marc})", usuarios)
@@ -85,7 +106,7 @@ def limpar(cur):
 
 def conta(cur, nome, email, papel, banco_id=None, parceiro_id=None):
     cur.execute("INSERT INTO usuarios (nome, email, senha_hash, status, banco_id, parceiro_id) VALUES (%s,%s,%s,'ATIVO',%s,%s)",
-                (nome, email, R.S.password_hash(SENHA_DEMO), banco_id, parceiro_id))
+                (nome, email, R.S.password_hash(senha_das_contas()), banco_id, parceiro_id))
     uid = cur.lastrowid
     cur.execute("INSERT INTO usuario_perfis (usuario_id, perfil_id) SELECT %s, id FROM perfis WHERE nome=%s", (uid, papel))
     return uid
@@ -96,7 +117,8 @@ def semear():
 
     def gravar(cur):
         limpar(cur)
-        conta(cur, "Admin Demonstração", "admin@exemplo.com", "ADMINISTRADOR")
+        if not R.S.PRODUCTION:  # na nuvem o admin é a conta real da equipe, nunca uma conta de demonstração
+            conta(cur, "Admin Demonstração", "admin@exemplo.com", "ADMINISTRADOR")
         unidades = []
         for i, b in enumerate(BANCOS):
             cur.execute("INSERT INTO bancos_sangue (nome, cidade, uf, telefone, email, status) VALUES (%s,%s,%s,%s,%s,'ATIVO')",
@@ -192,8 +214,17 @@ def semear():
         R.avisar(cur, uid0, "Bem-vinda ao HemoFlow!", "Seu tipo O− está em falta no Banco Vida. Veja os horários livres.", "inicio")
         return {"bancos": len(unidades), "parceiros": len(parceiros) + 1, "doadores": len(doadores)}
 
+    senha_das_contas()  # na nuvem, para antes de apagar qualquer coisa se a senha não estiver definida
     resumo = R.transacao(gravar)
-    resumo["contas"] = ["admin@exemplo.com", "captacao1@exemplo.com", "captacao2@exemplo.com", "padaria@exemplo.com",
+    resumo["contas"] = ([] if R.S.PRODUCTION else ["admin@exemplo.com"]) + ["captacao1@exemplo.com", "captacao2@exemplo.com", "padaria@exemplo.com",
                         "cursinho@exemplo.com", "doador@exemplo.com"]
-    resumo["senha"] = "veja SENHA_DEMO em dados_demo.py"
+    resumo["senha"] = "a da variável HEMOFLOW_DEMO_SENHA" if R.S.PRODUCTION else "veja SENHA_DEMO em dados_demo.py"
     return resumo
+
+
+if __name__ == "__main__":
+    import sys
+    import servidor  # noqa: F401  (liga rotas_v2 ao servidor: conexão, senhas, data de hoje)
+    sys.modules["rotas_v2"].S = servidor
+    print("Recriando os dados FICTÍCIOS de demonstração (só os marcados com (demo) e @exemplo.com)…")
+    print(semear())
