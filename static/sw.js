@@ -4,15 +4,21 @@
  *  - guarda a "casca" do sistema (HTML, CSS, JS, ícones) para o app abrir mesmo sem internet;
  *  - sempre tenta a rede primeiro: online, o usuário vê sempre a versão mais nova;
  *  - NUNCA guarda respostas da API (/api/...): dados de doadores, contas etc. não ficam
- *    neste cache. O modo offline (só consulta do estoque) é tratado no app.js, com
- *    dados sem informação pessoal.
+ *    neste cache. Sem internet, a casca abre e o app avisa que precisa de conexão.
  */
-const VERSION = "hemoflow-v5";
+const VERSION = "hemoflow-v6-2.0";
 const SHELL = [
   "/",
   "/js/app.js",
+  "/js/nucleo.js",
+  "/js/painel.js",
+  "/js/doador.js",
+  "/js/banco.js",
+  "/js/parceiro.js",
+  "/js/admin.js",
   "/js/fundo-login.js",
-  "/css/estilos.css",
+  "/css/app.css",
+  "/css/login-3d.css",
   "/img/hemoflow-icone.png",
   "/img/login/h-simbolo-3d.webp",
   "/img/login/h-mascara.webp",

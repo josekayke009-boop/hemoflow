@@ -336,3 +336,7 @@ html[data-movimento="reduzido"] #login-cells, html[data-movimento="reduzido"] .l
 @media print {
   .menu-inferior, .lateral, .topo, .conteudo-topo { display: none !important; }
 }
+
+/* Tamanho dos ícones dentro de títulos e botões */
+.cartao-titulo svg { width: 26px; height: 26px; flex: none; color: var(--marca); }
+.btn svg, .icone-btn svg { width: 22px; height: 22px; flex: none; }

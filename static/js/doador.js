@@ -99,7 +99,7 @@ async function inicio() {
 
   partes.push(html`<section class="cartao">
     <div class="cartao-titulo">${cru(icone("gota"))}<h2>${apt.apto ? "Você já pode doar" : "Próxima doação"}</h2></div>
-    <p>${apt.apto ? "Pela sua última doação, você está liberado. Agende quando puder." : cru(`Você poderá doar a partir de <strong>${esc(dataBR(apt.a_partir_de))}</strong>.`)}
+    <p>${apt.apto ? (r.doacoes ? "Pela sua última doação, você está liberado. Agende quando puder." : "Escolha um horário em Agendar. A triagem no banco de sangue confirma se está tudo certo.") : cru(`Você poderá doar a partir de <strong>${esc(dataBR(apt.a_partir_de))}</strong>.`)}
     ${apt.motivo ? cru(`<br><span class="muted">${esc(apt.motivo)}</span>`) : ""}</p>
     <p class="muted pequeno" style="margin:0">Doações nos últimos 12 meses: ${apt.doacoes_12m} de ${apt.limite_anual}.</p>
   </section>`);
