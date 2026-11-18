@@ -47,7 +47,11 @@ def main():
     for nome in originais:
         copia = (prefixo + nome)[:64]
         cur.execute(f"CREATE TABLE `{copia}` LIKE `{nome}`")
-        cur.execute(f"INSERT INTO `{copia}` SELECT * FROM `{nome}`")
+        # Colunas calculadas (GENERATED) não podem receber valor: o MySQL recalcula sozinho.
+        cur.execute("""SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+                       AND TABLE_NAME=%s AND EXTRA NOT LIKE %s ORDER BY ORDINAL_POSITION""", (nome, "%GENERATED%"))
+        colunas = ", ".join(f"`{c}`" for (c,) in cur.fetchall())
+        cur.execute(f"INSERT INTO `{copia}` ({colunas}) SELECT {colunas} FROM `{nome}`")
         cur.execute(f"SELECT COUNT(*) FROM `{nome}`")
         n_orig = cur.fetchone()[0]
         cur.execute(f"SELECT COUNT(*) FROM `{copia}`")
