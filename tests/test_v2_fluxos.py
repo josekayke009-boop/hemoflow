@@ -56,8 +56,9 @@ def cpf_valido():
 def novo_doador():
     """Cadastra um doador de teste (sem doações, portanto apto) e devolve o cliente já logado."""
     c = Cliente()
+    c.email = f"teste.{time.time_ns()}@exemplo.com"
     st, r = c("POST", "/api/cadastro", {
-        "nome": "Doador Teste Automatico", "email": f"teste.{time.time_ns()}@exemplo.com", "senha": "abc12345",
+        "nome": "Doador Teste Automatico", "email": c.email, "senha": "abc12345",
         "cpf": cpf_valido(), "data_nascimento": "1995-03-10", "sexo": "M", "tipo_sanguineo": "O-",
         "cidade": "Recife", "uf": "PE", "aceite_termos": True, "aceite_dados_saude": True, "consentimento_convocacao": True})
     assert st == 201, r
@@ -208,6 +209,42 @@ class FluxosV21(unittest.TestCase):
         self.assertEqual((st, ver["valida"], ver["total_doacoes"]), (200, True, 1))
         self.assertNotIn("Automatico", ver["nome"])  # nome abreviado: só primeiro nome + inicial
         self.assertEqual(Cliente()("GET", "/api/publico/declaracoes/DEC-XXXXXX")[0], 404)
+
+
+@unittest.skipUnless(URL.startswith(("http://127.0.0.1", "http://localhost")), "defina HEMOFLOW_TESTE_URL (servidor local)")
+class ExcluirConta(unittest.TestCase):
+    """LGPD, art. 18, VI: o doador exclui a própria conta pelo app."""
+
+    def test_exclusao_completa(self):
+        banco = Cliente().entrar("captacao1@exemplo.com")
+        admin = Cliente().entrar("admin@exemplo.com")
+        un = banco("GET", "/api/banco/painel")[1]["unidades"][0]["id"]
+        doador = novo_doador()
+        vaga = next(v for v in doador("GET", f"/api/doador/vagas?unidade_id={un}")[1]["vagas"] if v["livres"] > 0)
+        self.assertEqual(doador("POST", "/api/doador/agendar", {"vaga_id": vaga["id"]})[0], 201)
+        self.assertEqual(len(doador("GET", "/api/doador/excluir-conta/resumo")[1]["agendamentos"]), 1)
+        # proteções: senha errada e falta da palavra EXCLUIR
+        self.assertEqual(doador("POST", "/api/doador/excluir-conta", {"senha": "errada123", "confirmacao": "EXCLUIR"})[0], 403)
+        self.assertEqual(doador("POST", "/api/doador/excluir-conta", {"senha": "abc12345", "confirmacao": "sim"})[0], 400)
+        avisos_antes = banco("GET", "/api/avisos")[1]["nao_lidos"]
+        st, r = doador("POST", "/api/doador/excluir-conta", {"senha": "abc12345", "confirmacao": "excluir"})
+        self.assertEqual(st, 200, r)
+        # sessão encerrada, login impossível, banco avisado, dados pessoais fora da lista do admin
+        self.assertEqual(doador("GET", "/api/doador/inicio")[0], 401)
+        self.assertEqual(Cliente()("POST", "/api/login", {"email": doador.email, "senha": "abc12345"})[0], 401)
+        self.assertGreater(banco("GET", "/api/avisos")[1]["nao_lidos"], avisos_antes)
+        self.assertEqual(admin("GET", f"/api/admin/doadores?q={doador.email}")[1], [])
+        removidos = admin("GET", "/api/admin/doadores?q=Doador%20removido")[1]
+        self.assertTrue(removidos)
+        self.assertTrue(all(d["email"] is None and d["telefone"] is None and d["data_nascimento"] is None for d in removidos))
+
+    def test_admin_no_modo_entrar_como_nao_exclui(self):
+        admin = Cliente().entrar("admin@exemplo.com")
+        did = admin("GET", "/api/admin/doadores?q=doador@exemplo.com")[1][0]["id"]
+        admin("POST", "/api/admin/entrar-como", {"papel": "DOADOR", "id": did})
+        st, _ = admin("POST", "/api/doador/excluir-conta", {"senha": "x", "confirmacao": "EXCLUIR"})
+        admin("POST", "/api/sair-como", {})
+        self.assertEqual(st, 403)
 
 
 if __name__ == "__main__":

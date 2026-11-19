@@ -18,6 +18,7 @@ const PERGUNTAS = {
     ["Como deixo a letra maior ou o app escuro?", "Em <b>Perfil › Letra, contraste e tema</b> você escolhe letra maior, alto contraste, tema escuro e menos animações."],
     ["Esqueci minha senha.", "Na tela de entrada, toque em <b>Esqueci minha senha</b> ou entre com <b>Código por e-mail</b>: mandamos um código de 6 dígitos para o seu e-mail."],
     ["Não quero mais receber convocações.", "Em <b>Perfil › Meus dados e avisos</b>, desmarque a opção de convocações. Você continua podendo agendar quando quiser."],
+    ["Como excluo minha conta?", "Em <b>Perfil › Meus dados e avisos</b>, no fim da página, toque em <b>Excluir minha conta</b>, digite sua senha e escreva EXCLUIR. Seus dados pessoais são apagados na hora; fica só o histórico de doações sem identificar você."],
   ],
   BANCO: [
     ["Como atualizo o estoque?", "Em <b>Estoque</b>, use <b>+</b> e <b>−</b> para entradas e saídas de uma bolsa. Para várias bolsas ou para corrigir a contagem, toque no termômetro do tipo e use <b>Ajuste (contagem)</b>."],

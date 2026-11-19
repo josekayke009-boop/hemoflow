@@ -43,6 +43,7 @@ Regras principais (em `regras.py`, com testes): intervalo de 60 dias (homens) e 
 
 - [Termos de Uso](static/termos.html) e [Política de Privacidade](static/privacidade.html), também publicados em `/termos.html` e `/privacidade.html`, com links no login, no cadastro e no Perfil do doador.
 - No cadastro há três autorizações separadas: aceite dos documentos (obrigatório), **consentimento específico para dados de saúde** (obrigatório, art. 11, I, da LGPD) e convocações (opcional, **desmarcado por padrão**).
+- **Excluir a conta pelo próprio app** (Perfil › Meus dados e avisos): confirmação com senha e a palavra EXCLUIR; agendamentos futuros são cancelados (o banco é avisado), cupons não usados, grupos, vínculos e declarações saem, os dados pessoais são apagados na hora e o histórico de doações fica só anonimizado (art. 16). O admin no modo “Entrar como” não consegue excluir.
 - O aceite fica registrado na auditoria (`ACEITE_TERMOS`) com a versão dos documentos, a data e a hora, o IP e o que foi autorizado. A versão vigente fica em `VERSAO_TERMOS`, em `rotas_v2.py`.
 - Os textos foram escritos com base na LGPD (Lei 13.709/2018), no Marco Civil da Internet (Lei 12.965/2014), na Lei 10.205/2001 (doação de sangue) e no CDC. Antes de um uso comercial com bancos de sangue reais, devem ser revisados por um advogado.
 

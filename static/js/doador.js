@@ -508,7 +508,13 @@ async function dados() {
       <p class="erro hidden"></p><button class="btn btn-primario cheio" type="submit">Salvar</button></form></section>
     ${p.parceiros?.length ? `<section class="cartao"><h3>Instituições vinculadas</h3><ul class="lista">${p.parceiros
       .map((x) => `<li><span class="principal">${esc(x.nome)}</span>${x.tipo !== "COMERCIO" ? `<button type="button" class="btn btn-pequeno btn-claro" data-declaracao="${x.id}">📄 Declaração de doação</button>` : ""}</li>`)
-      .join("")}</ul><p class="muted pequeno">A declaração lista suas doações verificadas e tem um código que a instituição confere no HemoFlow.</p></section>` : ""}`;
+      .join("")}</ul><p class="muted pequeno">A declaração lista suas doações verificadas e tem um código que a instituição confere no HemoFlow.</p></section>` : ""}
+    <section class="cartao zona-perigo">
+      <h2>Excluir minha conta</h2>
+      <p class="muted" style="margin-bottom:12px">Apaga seus dados pessoais do HemoFlow de forma definitiva (direito garantido pela LGPD).
+        Seu histórico de doações fica guardado só como número, sem nada que identifique você.</p>
+      <button type="button" class="btn btn-perigo" data-excluir-conta>Excluir minha conta</button>
+    </section>`;
 }
 
 async function acessibilidade() {
@@ -533,6 +539,7 @@ async function cliques(ev) {
   if (alvo.dataset.irAba) return irPara(alvo.dataset.irAba);
   if ("compartilhar" in alvo.dataset) return compartilhar(cache.inicio).catch(erro);
   if (alvo.dataset.declaracao) return emitirDeclaracao(Number(alvo.dataset.declaracao), alvo);
+  if ("excluirConta" in alvo.dataset) return excluirConta();
   if (alvo.dataset.cancelar) {
     const corpo = janela("Cancelar agendamento?", `<p>O banco de sangue será avisado e a vaga fica livre para outra pessoa.</p>
       <div class="linha-flex"><button class="btn btn-claro" type="button" id="nao">Manter</button><button class="btn btn-perigo" type="button" id="sim">Cancelar doação</button></div>`);
@@ -561,6 +568,44 @@ async function cliques(ev) {
       erro(e);
     }
   }
+}
+
+/* Excluir a própria conta: explica o que acontece e pede senha + a palavra EXCLUIR */
+async function excluirConta() {
+  let resumo = { agendamentos: [], cupons_ativos: 0 };
+  try {
+    resumo = await api("/api/doador/excluir-conta/resumo");
+  } catch (e) {
+    return erro(e);
+  }
+  const avisos = [
+    ...resumo.agendamentos.map((a) => `<li>Sua doação de <strong>${diaSemana(a.inicio)}, ${dataBR(a.inicio)} às ${hora(a.inicio)}</strong> (${esc(a.unidade)}) será <strong>cancelada</strong> e o banco de sangue será avisado.</li>`),
+    resumo.cupons_ativos ? `<li>Seus <strong>${resumo.cupons_ativos} cupom(ns) ainda válido(s)</strong> serão cancelados.</li>` : "",
+  ].join("");
+  const c = janela("Excluir minha conta", `
+    <p><strong>Esta ação não pode ser desfeita.</strong> Ao confirmar:</p>
+    <ul class="lista-exclusao">
+      ${avisos}
+      <li>Seu nome, CPF, e-mail, celular, data de nascimento e cidade são <strong>apagados</strong>.</li>
+      <li>Você sai de grupos, do vínculo com cursinho ou faculdade e deixa de receber convocações. Declarações já emitidas deixam de ser válidas.</li>
+      <li>Fica guardado apenas o <strong>histórico de doações anonimizado</strong> (tipo sanguíneo, data e local, sem identificar você) e o registro de acesso exigido por lei por 6 meses.</li>
+      <li>Para usar o HemoFlow de novo, será preciso criar outra conta.</li>
+    </ul>
+    <form id="f-excluir">
+      <label>Sua senha <span class="campo-senha"><input name="senha" type="password" autocomplete="current-password" required />
+        <button type="button" class="ver-senha" aria-label="Mostrar senha">Ver</button></span></label>
+      <label>Para confirmar, escreva <strong>EXCLUIR</strong> <input name="confirmacao" autocomplete="off" required placeholder="EXCLUIR" /></label>
+      <p class="erro hidden" role="alert"></p>
+      <div class="linha-flex"><button type="button" class="btn btn-claro" id="manter-conta">Manter minha conta</button>
+        <button type="submit" class="btn btn-perigo-cheio">Excluir definitivamente</button></div>
+    </form>`);
+  $("#manter-conta", c).addEventListener("click", fecharJanela);
+  aoEnviar($("#f-excluir", c), async (d) => {
+    const r = await api("/api/doador/excluir-conta", { senha: d.senha, confirmacao: d.confirmacao });
+    fecharJanela();
+    aviso(r.mensagem);
+    await ctxApp.sair(); // apaga também a cópia guardada no aparelho e volta para a tela de entrada
+  });
 }
 
 /* Declaração de doação para cursinho/faculdade: abre uma página pronta para imprimir ou salvar em PDF */

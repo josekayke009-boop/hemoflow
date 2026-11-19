@@ -148,7 +148,7 @@ def usuario_json(record, ctx):
 # ============================================================================
 # Versão vigente dos Termos de Uso e da Política de Privacidade (static/termos.html e static/privacidade.html).
 # Mudou o texto de forma relevante? Atualize aqui e no topo dos documentos.
-VERSAO_TERMOS = "1.0 de 19/11/2026"
+VERSAO_TERMOS = "1.1 de 19/11/2026"
 
 ROTAS = [
     ("POST", r"/api/cadastro", "cadastrar_doador", None),
@@ -174,6 +174,8 @@ ROTAS = [
     ("POST", r"/api/doador/grupos/entrar", "doador_entrar_grupo", "DOADOR"),
     ("GET", r"/api/doador/perfil", "doador_perfil", "DOADOR"),
     ("POST", r"/api/doador/perfil", "doador_salvar_perfil", "DOADOR"),
+    ("GET", r"/api/doador/excluir-conta/resumo", "doador_resumo_exclusao", "DOADOR"),
+    ("POST", r"/api/doador/excluir-conta", "doador_excluir_conta", "DOADOR"),
     # painel do banco
     ("GET", r"/api/banco/painel", "banco_painel", "BANCO"),
     ("POST", r"/api/banco/estoque/movimento", "banco_movimento", "BANCO"),
@@ -825,6 +827,94 @@ class RotasV2:
             auditar(cur, self.uid(), "EDITAR", "doador", "doadores", d["id"], {"campos": list(data)})
         transacao(gravar)
         self.send_json({"ok": True, "mensagem": "Perfil atualizado."})
+
+    # ------------------------------------------------------------------------
+    # Excluir a própria conta (LGPD, art. 18, VI): apaga os dados pessoais e
+    # mantém só o histórico ANONIMIZADO (tipo, data e local), que não identifica
+    # ninguém e preserva os números dos bancos de sangue (LGPD, art. 16).
+    # ------------------------------------------------------------------------
+    def doador_resumo_exclusao(self, data, query):
+        """O que será afetado (mostrado na janela de confirmação)."""
+        d = self.doador()
+        ag = consulta("""SELECT v.inicio, u.nome AS unidade FROM agenda_doacoes a JOIN vagas v ON v.id=a.vaga_id
+                         JOIN unidades u ON u.id=a.unidade_id WHERE a.doador_id=%s AND a.status='AGENDADO' AND v.inicio > NOW()
+                         ORDER BY v.inicio""", (d["id"],))
+        cupons = consulta("SELECT COUNT(*) AS n FROM cupons WHERE doador_id=%s AND usado_em IS NULL AND expira_em >= CURDATE()",
+                          (d["id"],), um=True)["n"]
+        self.send_json({"agendamentos": [{"inicio": data_iso(a["inicio"]), "unidade": a["unidade"]} for a in ag],
+                        "cupons_ativos": cupons, "pode_confirmar_com_senha": True})
+
+    def doador_excluir_conta(self, data, query):
+        d = self.doador()
+        if str(data.get("confirmacao", "")).strip().upper() != "EXCLUIR":
+            raise S.ApiError("Para confirmar, escreva EXCLUIR no campo indicado.")
+        u = consulta("SELECT id, email, senha_hash FROM usuarios WHERE id=%s", (self.uid(),), um=True)
+        if self.ctx.get("admin_real"):
+            raise S.ApiError("No modo “Entrar como”, o admin não pode excluir a conta do doador por aqui.", 403)
+        if not u or not S.verify_password(str(data.get("senha", "")), u["senha_hash"]):
+            raise S.ApiError("Senha incorreta. A conta não foi excluída.", 403)
+        email_original, nome_original = u["email"], d["nome"]
+
+        def gravar(cur):
+            # 1) agendamentos futuros: cancela e avisa o banco de sangue
+            cur.execute("""SELECT a.id, v.inicio, u.banco_id FROM agenda_doacoes a JOIN vagas v ON v.id=a.vaga_id
+                           JOIN unidades u ON u.id=a.unidade_id WHERE a.doador_id=%s AND a.status='AGENDADO' AND v.inicio > NOW()""",
+                        (d["id"],))
+            for a in cur.fetchall():
+                cur.execute("UPDATE agenda_doacoes SET status='CANCELADO' WHERE id=%s", (a["id"],))
+                avisar_equipe_banco(cur, a["banco_id"], "Agendamento cancelado",
+                                    f"Um doador excluiu a conta e o agendamento de {a['inicio'].strftime('%d/%m às %H:%M')} foi cancelado. A vaga foi liberada.",
+                                    "agenda")
+            # 2) vínculos e itens pessoais
+            cur.execute("DELETE FROM cupons WHERE doador_id=%s AND usado_em IS NULL", (d["id"],))
+            cur.execute("DELETE FROM grupo_membros WHERE doador_id=%s", (d["id"],))
+            cur.execute("DELETE FROM doador_parceiros WHERE doador_id=%s", (d["id"],))
+            cur.execute("DELETE FROM convocacao_doadores WHERE doador_id=%s AND status='ENVIADA'", (d["id"],))
+            cur.execute("DELETE FROM declaracoes WHERE doador_id=%s", (d["id"],))
+            cur.execute("UPDATE historico_doacoes SET local_texto=NULL WHERE doador_id=%s AND unidade_id IS NOT NULL", (d["id"],))
+            # 3) cadastro do doador: apaga tudo o que identifica; ficam tipo sanguíneo e estado (estatística)
+            cur.execute("""UPDATE doadores SET nome='Doador removido', cpf=NULL, email=NULL, telefone=NULL, data_nascimento=NULL,
+                               cep=NULL, logradouro=NULL, numero=NULL, complemento=NULL, bairro=NULL, cidade=NULL,
+                               codigo_ficticio=NULL, observacoes=NULL, peso_kg=NULL, sexo=NULL, ultima_doacao_informada=NULL,
+                               consentimento_convocacao=0, consentimento_em=NULL, responsavel_nome=NULL, responsavel_consentiu=0,
+                               usuario_id=NULL, status='INATIVO' WHERE id=%s""", (d["id"],))
+            # 4) login: perfil, avisos e códigos apagados; e-mail, nome e senha viram valores que ninguém conhece
+            uid = self.uid()
+            for tabela in ("usuario_perfis", "avisos", "codigos_login", "recuperacao_senhas"):
+                cur.execute(f"DELETE FROM {tabela} WHERE usuario_id=%s", (uid,))
+            # o registro do aceite tinha IP e nome do responsável: fica só a marca de que existiu
+            cur.execute("""UPDATE historico_auditoria SET detalhes_json=%s WHERE usuario_id=%s AND acao IN ('ACEITE_TERMOS','CADASTRO','EDITAR')""",
+                        ('{"anonimizado": true}', uid))
+            cur.execute("""UPDATE usuarios SET nome='Conta removida', email=%s, senha_hash=%s, status='INATIVO',
+                               tentativas_falhas=0, bloqueado_ate=NULL, banco_id=NULL, parceiro_id=NULL WHERE id=%s""",
+                        (f"removido.{uid}.{secrets.token_hex(4)}@hemoflow.invalid", S.password_hash(secrets.token_urlsafe(32)), uid))
+            # registro sem dados pessoais (prova de que o pedido foi atendido)
+            auditar(cur, None, "EXCLUSAO_CONTA", "lgpd", "doadores", d["id"], {"anonimizado": True})
+        transacao(gravar)
+        for token, sessao in list(S.SESSIONS.items()):  # encerra todas as sessões abertas dessa conta
+            if sessao["id"] == self.uid():
+                S.SESSIONS.pop(token, None)
+        self.enviar_confirmacao_exclusao(email_original, nome_original)
+        self.send_json({"ok": True, "mensagem": "Sua conta foi excluída e seus dados pessoais foram apagados. Obrigado por ter doado com o HemoFlow."},
+                       200, [("Set-Cookie", S.session_cookie("", 0))])
+
+    def enviar_confirmacao_exclusao(self, email, nome):
+        """E-mail de confirmação (nunca para endereços de demonstração @exemplo.com)."""
+        if not email or email.endswith("@exemplo.com") or not S.email_configured():
+            return
+        try:
+            msg = S.EmailMessage()
+            msg["Subject"] = "HemoFlow · sua conta foi excluída"
+            msg["From"] = f"HemoFlow <{S.EMAIL_FROM}>"
+            msg["To"] = email
+            msg.set_content(
+                f"Olá, {primeiro_nome(nome)}.\n\nConfirmamos a exclusão da sua conta no HemoFlow em {S.hoje().strftime('%d/%m/%Y')}.\n"
+                "Seus dados pessoais foram apagados. Guardamos apenas o histórico de doações sem nada que identifique você "
+                "e os registros de acesso pelo prazo exigido pelo Marco Civil da Internet (6 meses).\n\n"
+                "Se não foi você quem pediu, responda este e-mail.\n\nObrigado por doar sangue. HemoFlow · Doe. Volte. Salve vidas.")
+            S.deliver_email(msg)
+        except Exception as exc:  # noqa: BLE001 - o e-mail é cortesia: a exclusão já foi feita
+            print("Aviso: e-mail de confirmação de exclusão não enviado:", type(exc).__name__)
 
     # ========================================================================
     # E. PAINEL DO BANCO DE SANGUE
