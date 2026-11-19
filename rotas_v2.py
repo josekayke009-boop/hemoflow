@@ -1356,7 +1356,10 @@ class RotasV2:
         })
 
     def admin_bancos(self, data, query):
-        bancos = consulta("SELECT * FROM bancos_sangue ORDER BY id DESC")
+        bancos = consulta("""SELECT b.*, (SELECT COUNT(*) FROM usuarios u JOIN usuario_perfis up ON up.usuario_id=u.id
+                                         JOIN perfis pf ON pf.id=up.perfil_id AND pf.nome='BANCO'
+                                         WHERE u.banco_id=b.id AND u.status='ATIVO') AS logins
+                             FROM bancos_sangue b ORDER BY b.id DESC""")
         for b in bancos:
             b["unidades"] = consulta("SELECT * FROM unidades WHERE banco_id=%s ORDER BY id", (b["id"],))
         self.send_json({"bancos": bancos, "publicos": consulta("SELECT * FROM unidades WHERE tipo='PUBLICO' ORDER BY uf, nome")})
@@ -1416,7 +1419,10 @@ class RotasV2:
         self.send_json({"ok": True, "id": transacao(gravar), "mensagem": "Unidade salva."}, 201)
 
     def admin_parceiros(self, data, query):
-        parceiros = consulta("SELECT * FROM parceiros ORDER BY id DESC")
+        parceiros = consulta("""SELECT p.*, (SELECT COUNT(*) FROM usuarios u JOIN usuario_perfis up ON up.usuario_id=u.id
+                                            JOIN perfis pf ON pf.id=up.perfil_id AND pf.nome='PARCEIRO'
+                                            WHERE u.parceiro_id=p.id AND u.status='ATIVO') AS logins
+                                FROM parceiros p ORDER BY p.id DESC""")
         ofertas = consulta("""SELECT o.*, p.nome AS parceiro FROM ofertas o JOIN parceiros p ON p.id=o.parceiro_id ORDER BY o.id DESC""")
         self.send_json({"parceiros": parceiros, "ofertas": ofertas})
 

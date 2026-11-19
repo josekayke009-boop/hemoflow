@@ -58,10 +58,11 @@ async function telaBancos() {
   const r = await api("/api/admin/bancos");
   cacheBancos = r.bancos;
   return `<div class="linha-flex" style="margin-bottom:16px"><button class="btn btn-primario" data-novo-banco>+ Novo banco de sangue</button></div>
-    <section class="cartao"><div class="tabela-wrap"><table><thead><tr><th>Banco</th><th>Cidade</th><th>Unidades</th><th>Situação</th><th></th></tr></thead><tbody>${r.bancos
+    <section class="cartao"><div class="tabela-wrap"><table><thead><tr><th>Banco</th><th>Cidade</th><th>Unidades</th><th>Logins</th><th>Situação</th><th></th></tr></thead><tbody>${r.bancos
       .map((b) => `<tr><td><strong>${esc(b.nome)}</strong><br><span class="muted pequeno">${esc(b.email || "")} ${esc(b.telefone || "")}</span></td><td>${esc(b.cidade)}/${esc(b.uf)}</td>
-        <td>${b.unidades.map((u) => esc(u.nome)).join("<br>")}</td><td>${selo(b.status)}</td>
-        <td><div class="linha-flex"><button class="btn btn-pequeno btn-claro" data-editar-banco="${b.id}">Editar</button><button class="btn btn-pequeno btn-claro" data-unidade-banco="${b.id}">+ Unidade</button>
+        <td>${b.unidades.map((u) => esc(u.nome)).join("<br>")}</td><td>${b.logins ? `${b.logins} ativo(s)` : '<span class="selo atencao">sem acesso</span>'}</td><td>${selo(b.status)}</td>
+        <td><div class="linha-flex"><button class="btn btn-pequeno btn-primario" data-criar-acesso="BANCO" data-id="${b.id}" data-nome="${esc(b.nome)}">🔑 Criar acesso</button>
+        <button class="btn btn-pequeno btn-claro" data-editar-banco="${b.id}">Editar</button><button class="btn btn-pequeno btn-claro" data-unidade-banco="${b.id}">+ Unidade</button>
         <button class="btn btn-pequeno btn-claro" data-como="BANCO" data-id="${b.id}">Entrar como</button></div></td></tr>`)
       .join("")}</tbody></table></div></section>
     <section class="cartao"><h2>Hemocentros públicos (só informação para o doador)</h2><ul class="lista">${r.publicos
@@ -78,9 +79,11 @@ function formBanco(b = {}) {
     <label>Situação <select name="status">${["ATIVO", "PENDENTE", "SUSPENSO"].map((s) => `<option${s === (b.status || "ATIVO") ? " selected" : ""}>${s}</option>`).join("")}</select></label>
     <p class="erro hidden"></p><button class="btn btn-primario cheio" type="submit">Salvar</button></form>`);
   aoEnviar($("#f-banco", c), async (d) => {
-    aviso((await api("/api/admin/bancos", { ...d, id: b.id || null })).mensagem);
-    fecharJanela();
+    const r = await api("/api/admin/bancos", { ...d, id: b.id || null });
+    aviso(r.mensagem);
     painel.ir("bancos");
+    if (b.id) fecharJanela();
+    else formAcesso("BANCO", r.id, d.nome, true); // banco novo: já cria o login da equipe dele
   });
 }
 function formUnidade(bancoId) {
@@ -103,9 +106,10 @@ async function telaParceiros() {
   const r = await api("/api/admin/parceiros");
   cacheParceiros = r.parceiros;
   return `<div class="linha-flex" style="margin-bottom:16px"><button class="btn btn-primario" data-novo-parceiro>+ Novo parceiro</button></div>
-    <section class="cartao"><h2>Parceiros</h2><div class="tabela-wrap"><table><thead><tr><th>Parceiro</th><th>Tipo</th><th>Cidade</th><th>Código alunos</th><th>Situação</th><th></th></tr></thead><tbody>${r.parceiros
-      .map((p) => `<tr><td><strong>${esc(p.nome)}</strong></td><td>${esc(TIPO_PARCEIRO[p.tipo] || p.tipo)}</td><td>${esc(p.cidade)}/${esc(p.uf)}</td><td>${esc(p.codigo_alunos || "—")}</td><td>${selo(p.status)}</td>
-        <td><div class="linha-flex"><button class="btn btn-pequeno btn-claro" data-editar-parceiro="${p.id}">Editar</button><button class="btn btn-pequeno btn-claro" data-como="PARCEIRO" data-id="${p.id}">Entrar como</button></div></td></tr>`)
+    <section class="cartao"><h2>Parceiros</h2><div class="tabela-wrap"><table><thead><tr><th>Parceiro</th><th>Tipo</th><th>Cidade</th><th>Código alunos</th><th>Logins</th><th>Situação</th><th></th></tr></thead><tbody>${r.parceiros
+      .map((p) => `<tr><td><strong>${esc(p.nome)}</strong></td><td>${esc(TIPO_PARCEIRO[p.tipo] || p.tipo)}</td><td>${esc(p.cidade)}/${esc(p.uf)}</td><td>${esc(p.codigo_alunos || "—")}</td><td>${p.logins ? `${p.logins} ativo(s)` : '<span class="selo atencao">sem acesso</span>'}</td><td>${selo(p.status)}</td>
+        <td><div class="linha-flex"><button class="btn btn-pequeno btn-primario" data-criar-acesso="PARCEIRO" data-id="${p.id}" data-nome="${esc(p.nome)}">🔑 Criar acesso</button>
+        <button class="btn btn-pequeno btn-claro" data-editar-parceiro="${p.id}">Editar</button><button class="btn btn-pequeno btn-claro" data-como="PARCEIRO" data-id="${p.id}">Entrar como</button></div></td></tr>`)
       .join("")}</tbody></table></div></section>
     <section class="cartao"><h2>Ofertas</h2><div class="tabela-wrap"><table><thead><tr><th>Oferta</th><th>Parceiro</th><th>Validade</th><th>Situação</th><th></th></tr></thead><tbody>${r.ofertas
       .map((o) => `<tr><td><strong>${esc(o.titulo)}</strong>${o.destaque ? ' <span class="selo">destaque</span>' : ""}<br><span class="muted pequeno">${esc(o.descricao || "")}</span></td><td>${esc(o.parceiro)}</td><td>${o.validade ? dataBR(String(o.validade)) : "—"}</td><td>${selo(o.status)}</td>
@@ -127,8 +131,45 @@ function formParceiro(p = {}) {
     if (d.tipo === "COMERCIO") d.codigo_alunos = "";
     const r = await api("/api/admin/parceiros", { ...d, id: p.id || null });
     aviso(r.mensagem + (r.codigo_alunos ? ` Código dos alunos: ${r.codigo_alunos}` : ""));
-    fecharJanela();
     painel.ir("parceiros");
+    if (p.id) fecharJanela();
+    else formAcesso("PARCEIRO", r.id, d.nome, true);
+  });
+}
+
+/* ---- CRIAR ACESSO (login) de um banco de sangue ou parceiro ------------------------ */
+function formAcesso(papel, id, nome, recemCriado = false) {
+  const quem = papel === "BANCO" ? "banco de sangue" : "parceiro";
+  const c = janela(`Criar acesso · ${nome}`, `
+    ${recemCriado ? `<p class="sucesso">✅ ${esc(nome)} cadastrado. Agora crie o login da equipe dele.</p>` : ""}
+    <p class="muted">Este login abre o painel do ${quem} <strong>${esc(nome)}</strong>. Crie um para cada pessoa da equipe.</p>
+    <form id="f-acesso">
+      <label>Nome da pessoa <input name="nome" required placeholder="Ex.: Ana — recepção" /></label>
+      <label>E-mail de login <input name="email" type="email" required autocomplete="off" /></label>
+      <label>Senha inicial <span class="campo-senha"><input name="senha" type="password" autocomplete="new-password" minlength="10" required placeholder="10+ caracteres, letras e números" />
+        <button type="button" class="ver-senha" aria-label="Mostrar senha">Ver</button></span></label>
+      <p class="erro hidden"></p>
+      <div class="linha-flex"><button type="button" class="btn btn-claro" id="depois">Depois</button>
+        <button class="btn btn-primario" type="submit">Criar acesso</button></div>
+    </form>`);
+  $("#depois", c).addEventListener("click", fecharJanela);
+  aoEnviar($("#f-acesso", c), async (d) => {
+    await api("/api/admin/contas", { ...d, papel, banco_id: papel === "BANCO" ? id : null, parceiro_id: papel === "PARCEIRO" ? id : null });
+    janela("Acesso criado", `
+      <p class="sucesso">✅ Login criado para <strong>${esc(d.nome)}</strong> (${esc(nome)}).</p>
+      <p>Envie para a pessoa:</p>
+      <div class="caixa-envio"><strong>Endereço:</strong> ${esc(location.origin)}<br><strong>E-mail:</strong> ${esc(d.email)}<br><strong>Senha:</strong> a senha inicial que você definiu</div>
+      <p class="muted pequeno">Mande a senha por um canal separado (ligação ou mensagem à parte) e peça para a pessoa trocar no primeiro acesso, em “Esqueci minha senha”. Bloqueie o acesso em <em>Contas de acesso</em> se a pessoa sair da equipe.</p>
+      <button type="button" class="btn btn-claro cheio" id="copiar-envio">Copiar endereço e e-mail</button>`);
+    $("#copiar-envio").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(`HemoFlow · ${nome}\nEndereço: ${location.origin}\nE-mail: ${d.email}\nSenha: enviada separadamente`);
+        aviso("Copiado. Cole no e-mail ou WhatsApp.");
+      } catch {
+        aviso("Não foi possível copiar automaticamente. Selecione e copie o texto acima.", "erro");
+      }
+    });
+    painel.ir(papel === "BANCO" ? "bancos" : "parceiros");
   });
 }
 
@@ -140,6 +181,7 @@ function ligarAcoes(corpo) {
     const ds = b.dataset;
     try {
       if (ds.ir) return painel.ir(ds.ir);
+      if (ds.criarAcesso) return formAcesso(ds.criarAcesso, Number(ds.id), ds.nome);
       if ("novoBanco" in ds) return formBanco();
       if (ds.editarBanco) return formBanco(cacheBancos.find((x) => x.id === Number(ds.editarBanco)));
       if ("unidadeBanco" in ds) return formUnidade(Number(ds.unidadeBanco) || null);

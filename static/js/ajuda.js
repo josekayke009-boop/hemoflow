@@ -38,7 +38,7 @@ const PERGUNTAS = {
     ["Como funciona o código dos alunos?", "Cursinhos, pré-Enem e faculdades recebem um código. O aluno digita no app e vocês veem apenas números gerais da turma, a partir de 5 alunos. Nenhum nome ou dado de saúde é mostrado."],
   ],
   ADMINISTRADOR: [
-    ["Como cadastro um banco de sangue ou parceiro?", "Em <b>Bancos de sangue</b> ou <b>Parceiros</b>, use <b>+ Novo</b>. Depois crie a conta de acesso deles em <b>Contas de acesso</b>."],
+    ["Como cadastro um banco de sangue ou parceiro?", "Em <b>Bancos de sangue</b> ou <b>Parceiros</b>, use <b>+ Novo</b>. Ao salvar, o HemoFlow já abre o formulário de <b>Criar acesso</b> (login da equipe). Para criar mais logins depois, use o botão <b>🔑 Criar acesso</b> na linha do banco ou parceiro. A coluna <b>Logins</b> mostra quem ainda está “sem acesso”."],
     ["Como vejo o sistema como um banco, parceiro ou doador?", "Use <b>Entrar como</b> na linha do cadastro. Uma faixa escura avisa que você está nesse modo; toque em <b>Voltar ao painel admin</b> para sair. Tudo fica registrado na auditoria."],
     ["Como aprovo ofertas?", "As pendências aparecem no <b>Resumo</b> e em <b>Parceiros › Ofertas</b>."],
   ],

@@ -449,6 +449,9 @@ html[data-tema="escuro"] .impacto { background: linear-gradient(135deg, #8a0b20,
   .topo .espaco { flex: 0 1 calc(640px - 280px); }
 }
 
+/* Admin: dados do acesso criado, para enviar ao banco/parceiro */
+.caixa-envio { background: var(--superficie-2); border-radius: 12px; padding: 12px 14px; margin: 8px 0 12px; line-height: 1.8; word-break: break-all; }
+
 /* Excluir a conta */
 .zona-perigo { border-color: var(--critico); }
 .zona-perigo h2 { color: var(--critico); }
