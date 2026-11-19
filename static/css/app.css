@@ -448,3 +448,9 @@ html[data-tema="escuro"] .impacto { background: linear-gradient(135deg, #8a0b20,
   .topo > * { flex: none; }
   .topo .espaco { flex: 0 1 calc(640px - 280px); }
 }
+
+/* Cadastro: bloco das autorizações (LGPD) */
+.aceites { border: 1.5px solid var(--linha); border-radius: 14px; padding: 12px 14px 4px; margin: 4px 0 14px; }
+.aceites legend { font-weight: 800; padding: 0 6px; }
+.aceites label.check { font-size: .92rem; line-height: 1.45; }
+.aceites a { font-weight: 700; }

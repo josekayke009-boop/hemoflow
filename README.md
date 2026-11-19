@@ -39,6 +39,13 @@ Regras principais (em `regras.py`, com testes): intervalo de 60 dias (homens) e 
 
 **Concepção da versão 2.0 e proposta do novo front-end: João Manoel da Silva Oliveira.**
 
+## Termos de Uso e Política de Privacidade (LGPD)
+
+- [Termos de Uso](static/termos.html) e [Política de Privacidade](static/privacidade.html), também publicados em `/termos.html` e `/privacidade.html`, com links no login, no cadastro e no Perfil do doador.
+- No cadastro há três autorizações separadas: aceite dos documentos (obrigatório), **consentimento específico para dados de saúde** (obrigatório, art. 11, I, da LGPD) e convocações (opcional, **desmarcado por padrão**).
+- O aceite fica registrado na auditoria (`ACEITE_TERMOS`) com a versão dos documentos, a data e a hora, o IP e o que foi autorizado. A versão vigente fica em `VERSAO_TERMOS`, em `rotas_v2.py`.
+- Os textos foram escritos com base na LGPD (Lei 13.709/2018), no Marco Civil da Internet (Lei 12.965/2014), na Lei 10.205/2001 (doação de sangue) e no CDC. Antes de um uso comercial com bancos de sangue reais, devem ser revisados por um advogado.
+
 ## Tecnologias
 
 - **Backend:** Python 3 (biblioteca padrão `http.server`): `servidor.py`, `rotas_v2.py`, `regras.py`

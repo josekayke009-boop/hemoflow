@@ -421,7 +421,8 @@ async function perfil() {
       <button type="button" data-ir="ajuda">❓ Ajuda e fale conosco</button>
     </section>
     <button type="button" class="btn btn-claro cheio" id="d-sair">${icone("sair")} Sair da conta</button>
-    <p class="muted pequeno centro" style="margin-top:18px">HemoFlow · Doe. Volte. Salve vidas.</p>`;
+    <p class="muted pequeno centro" style="margin-top:18px">HemoFlow · Doe. Volte. Salve vidas.<br>
+      <a href="/termos.html" target="_blank" rel="noopener">Termos de Uso</a> · <a href="/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a></p>`;
 }
 const voltarPerfil = '<button type="button" class="voltar" data-ir="perfil">‹ Perfil</button>';
 

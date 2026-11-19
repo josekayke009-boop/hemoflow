@@ -146,6 +146,10 @@ def usuario_json(record, ctx):
 # ============================================================================
 # B. TABELA DE ROTAS  (método, padrão, função, perfil exigido; None = público)
 # ============================================================================
+# Versão vigente dos Termos de Uso e da Política de Privacidade (static/termos.html e static/privacidade.html).
+# Mudou o texto de forma relevante? Atualize aqui e no topo dos documentos.
+VERSAO_TERMOS = "1.0 de 19/11/2026"
+
 ROTAS = [
     ("POST", r"/api/cadastro", "cadastrar_doador", None),
     ("POST", r"/api/login/codigo/enviar", "enviar_codigo_login", None),
@@ -283,7 +287,9 @@ class RotasV2:
         if anos < 18 and not responsavel_ok:
             raise S.ApiError("Menores de 18 anos precisam do consentimento do responsável.")
         if not data.get("aceite_termos"):
-            raise S.ApiError("É preciso aceitar os termos de uso e a política de privacidade.")
+            raise S.ApiError("É preciso ler e aceitar os Termos de Uso e a Política de Privacidade.")
+        if not data.get("aceite_dados_saude"):
+            raise S.ApiError("É preciso autorizar o tratamento dos dados de saúde (tipo sanguíneo e doações) para usar o HemoFlow.")
         ultima = None
         if data.get("ultima_doacao"):
             try:
@@ -320,6 +326,10 @@ class RotasV2:
                          usuario_id, sexo, ultima, int(consentiu), datetime.now() if consentiu else None,
                          responsavel, int(responsavel_ok)))
             auditar(cur, usuario_id, "CADASTRO", "doador", "doadores", cur.lastrowid, {"origem": "app"})
+            # Prova do consentimento (LGPD, art. 8º, §2º): versão dos documentos, o que foi autorizado, quando e de onde
+            auditar(cur, usuario_id, "ACEITE_TERMOS", "lgpd", "usuarios", usuario_id,
+                    {"termos": VERSAO_TERMOS, "privacidade": VERSAO_TERMOS, "dados_saude": True,
+                     "convocacao": consentiu, "responsavel": responsavel if anos < 18 else None, "ip": self.client_ip()})
             avisar(cur, usuario_id, "Bem-vindo ao HemoFlow!", "Seu cadastro está pronto. Veja onde o seu tipo sanguíneo está em falta.")
             return usuario_id
 

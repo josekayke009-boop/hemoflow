@@ -6,7 +6,7 @@
  *  - NUNCA guarda respostas da API (/api/...): dados de doadores, contas etc. não ficam
  *    neste cache. Sem internet, a casca abre e o app avisa que precisa de conexão.
  */
-const VERSION = "hemoflow-v9-2.1.1";
+const VERSION = "hemoflow-v10-2.1.2";
 const SHELL = [
   "/",
   "/js/app.js",
@@ -21,6 +21,9 @@ const SHELL = [
   "/js/fundo-login.js",
   "/css/app.css",
   "/css/login-3d.css",
+  "/css/documento.css",
+  "/termos.html",
+  "/privacidade.html",
   "/img/hemoflow-icone.png",
   "/img/login/h-simbolo-3d.webp",
   "/img/login/h-mascara.webp",

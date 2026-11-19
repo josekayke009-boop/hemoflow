@@ -59,7 +59,7 @@ def novo_doador():
     st, r = c("POST", "/api/cadastro", {
         "nome": "Doador Teste Automatico", "email": f"teste.{time.time_ns()}@exemplo.com", "senha": "abc12345",
         "cpf": cpf_valido(), "data_nascimento": "1995-03-10", "sexo": "M", "tipo_sanguineo": "O-",
-        "cidade": "Recife", "uf": "PE", "aceite_termos": True, "consentimento_convocacao": True})
+        "cidade": "Recife", "uf": "PE", "aceite_termos": True, "aceite_dados_saude": True, "consentimento_convocacao": True})
     assert st == 201, r
     return c
 
@@ -129,9 +129,24 @@ class FluxosV2(unittest.TestCase):
         st, r = Cliente()("POST", "/api/cadastro", {
             "nome": "Menor Teste", "email": "menor.teste@exemplo.com", "senha": "abc12345", "cpf": "11144477735",
             "data_nascimento": "2009-12-31", "sexo": "F", "tipo_sanguineo": "A+", "cidade": "Recife", "uf": "PE",
-            "aceite_termos": True})
+            "aceite_termos": True, "aceite_dados_saude": True})
         self.assertEqual(st, 400)
         self.assertIn("respons", r["erro"])
+
+    def test_cadastro_exige_consentimento_dos_dados_de_saude(self):
+        st, r = Cliente()("POST", "/api/cadastro", {
+            "nome": "Sem Consentimento", "email": f"sem.{time.time_ns()}@exemplo.com", "senha": "abc12345", "cpf": cpf_valido(),
+            "data_nascimento": "1990-01-01", "sexo": "M", "tipo_sanguineo": "A+", "cidade": "Recife", "uf": "PE",
+            "aceite_termos": True})
+        self.assertEqual(st, 400)
+        self.assertIn("dados de saúde", r["erro"])
+
+    def test_documentos_juridicos_publicados(self):
+        for caminho, titulo in (("/termos.html", "Termos de Uso"), ("/privacidade.html", "Política de Privacidade")):
+            with urllib.request.urlopen(URL + caminho, timeout=10) as resp:
+                html = resp.read().decode("utf-8")
+            self.assertIn(titulo, html)
+            self.assertIn("13.709", html) if caminho == "/privacidade.html" else self.assertIn("10.205", html)
 
 
 @unittest.skipUnless(URL.startswith(("http://127.0.0.1", "http://localhost")), "defina HEMOFLOW_TESTE_URL (servidor local)")

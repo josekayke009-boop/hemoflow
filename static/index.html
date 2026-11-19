@@ -263,6 +263,7 @@
             <a href="#cadastro" id="link-cadastro">Quero ser doador · criar conta</a>
             <a href="#esqueci" id="link-esqueci">Esqueci minha senha</a>
           </div>
+          <p class="pequeno muted centro" style="margin-top:12px"><a href="/termos.html" target="_blank" rel="noopener">Termos de Uso</a> · <a href="/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a></p>
         </section>
 
         <!-- Cadastro do doador -->
@@ -296,19 +297,27 @@
             <div id="bloco-responsavel" class="aviso-suave hidden">
               <strong>Você tem 16 ou 17 anos.</strong> Precisamos do consentimento do seu responsável.
               <label>Nome do responsável <input name="responsavel_nome" /></label>
-              <label class="check"><input type="checkbox" name="responsavel_consentiu" /> Meu responsável leu e autorizou meu cadastro.</label>
+              <label class="check"><input type="checkbox" name="responsavel_consentiu" /> Meu responsável leu os Termos de Uso e a Política de Privacidade e autorizou meu cadastro.</label>
             </div>
             <label>E-mail <input name="email" type="email" autocomplete="email" required /></label>
             <label>Crie uma senha
               <span class="campo-senha"><input name="senha" type="password" autocomplete="new-password" minlength="8" required placeholder="8+ caracteres, letras e números" />
                 <button type="button" class="ver-senha" aria-label="Mostrar senha">Ver</button></span>
             </label>
-            <label class="check"><input type="checkbox" name="consentimento_convocacao" checked /> Quero ser avisado quando bancos de sangue da minha região precisarem do meu tipo.</label>
-            <label class="check"><input type="checkbox" name="aceite_termos" /> Li e aceito os termos de uso e a política de privacidade (LGPD).</label>
+            <fieldset class="aceites">
+              <legend>Seus dados e autorizações (LGPD)</legend>
+              <p class="pequeno muted" style="margin:0 0 10px">Antes de continuar, leia os documentos (abrem em outra aba):
+                <a href="/termos.html" target="_blank" rel="noopener">Termos de Uso</a> e
+                <a href="/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>.</p>
+              <label class="check"><input type="checkbox" name="aceite_termos" required /> <span>Li e aceito os <a href="/termos.html" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>. <strong>(obrigatório)</strong></span></label>
+              <label class="check"><input type="checkbox" name="aceite_dados_saude" required /> <span>Autorizo o HemoFlow a tratar meus <strong>dados de saúde</strong> (tipo sanguíneo e histórico de doações) para as finalidades descritas na Política de Privacidade, conforme o art. 11, I, da LGPD. <strong>(obrigatório)</strong></span></label>
+              <label class="check"><input type="checkbox" name="consentimento_convocacao" /> <span>Quero ser avisado quando bancos de sangue da minha região precisarem do meu tipo. <em>(opcional, posso desligar quando quiser em Perfil)</em></span></label>
+            </fieldset>
             <p class="erro hidden" role="alert"></p>
             <button class="btn btn-primario cheio" type="submit">Criar minha conta</button>
           </form>
           <div class="entrada-links"><a href="#login" class="voltar-login">Já tenho conta · entrar</a></div>
+          <p class="pequeno muted centro" style="margin-top:12px"><a href="/termos.html" target="_blank" rel="noopener">Termos de Uso</a> · <a href="/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a></p>
         </section>
 
         <!-- Recuperação de senha -->
