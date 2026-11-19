@@ -7,7 +7,7 @@
  *        PARCEIRO -> js/parceiro.js                 ADMINISTRADOR -> js/admin.js
  * Concepção da versão 2.0 e proposta do novo front-end: João Manoel da Silva Oliveira.
  */
-import { api, $, $$, aoEnviar, preferencias, opcoesUF, aviso, esc } from "./nucleo.js";
+import { api, $, $$, aoEnviar, preferencias, opcoesUF, aviso, esc, definirDono, limparDadosLocais, enviarFila } from "./nucleo.js";
 
 /* 1. PREFERÊNCIAS E PWA ---------------------------------------------------- */
 preferencias.aplicar();
@@ -162,6 +162,7 @@ export async function sair() {
   } catch {
     /* mesmo sem rede, volta para o login */
   }
+  limparDadosLocais(); // nada da conta fica guardado no aparelho depois de sair
   mostrarEntrada();
 }
 export async function voltarAoAdmin() {
@@ -178,6 +179,8 @@ async function abrirSistema(usuario) {
     aviso("Esta conta não tem uma área no HemoFlow. Procure a equipe.", "erro");
     return mostrarEntrada();
   }
+  definirDono(usuario.id);
+  enviarFila();
   document.body.classList.remove("auth-required");
   const raiz = $("#sistema");
   raiz.classList.remove("hidden");

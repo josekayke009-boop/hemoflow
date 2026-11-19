@@ -1,12 +1,13 @@
 /*
  * HemoFlow 2.0 — painel do banco de sangue
- *   Estoque ...... termômetro dos 8 tipos por unidade (+1 / −1, ajuste e limites)
+ *   Estoque ...... barra com faixas dos 8 tipos, previsão "acaba em N dias", alerta de crítico,
+ *                  +1 / −1 (saída para paciente avisa os doadores), ajuste e limites
  *   Convocar ..... o sistema sugere quantos doadores chamar; a equipe revisa e envia
  *   Agenda ....... horários do dia, quem agendou, marcar falta e abrir novos horários
  *   Confirmar .... digita o código do doador no balcão -> doação verificada
  *   Resultados ... convocados, comparecimento e taxa de retorno
  */
-import { api, $, $$, esc, aviso, erro, janela, fecharJanela, aoEnviar, dataBR, hora, hojeISO, NIVEL_TEXTO, TIPOS, termometro } from "./nucleo.js";
+import { api, $, $$, esc, aviso, erro, janela, fecharJanela, aoEnviar, dataBR, hora, hojeISO, NIVEL_TEXTO, TIPOS, preCarregar } from "./nucleo.js";
 import { montarPainel } from "./painel.js";
 import { telaAjuda, ligarAjuda } from "./ajuda.js";
 
@@ -21,6 +22,14 @@ export async function montar(raiz, usuario, ctx) {
     subtitulo: dados.banco.nome,
     usuario,
     ctx,
+    // Avisos do sino: "convocar:O-" abre a convocação daquele tipo; "agenda" abre a agenda
+    aoLink: (link) => {
+      if (link.startsWith("convocar:")) {
+        tipoConvocar = link.split(":")[1];
+        return painel.ir("convocar");
+      }
+      painel.ir(link === "agenda" ? "agenda" : "estoque");
+    },
     itens: [
       { id: "estoque", titulo: "Estoque", icone: "gota", tela: telaEstoque, depois: ligarEstoque },
       { id: "convocar", titulo: "Convocar doadores", icone: "megafone", tela: telaConvocar, depois: ligarConvocar },
@@ -30,6 +39,9 @@ export async function montar(raiz, usuario, ctx) {
       { id: "ajuda", titulo: "Ajuda", icone: "ajuda", tela: async () => telaAjuda("BANCO"), depois: ligarAjuda },
     ],
   });
+  // agenda de hoje de cada unidade, convocações e resultados ficam guardados para consulta sem internet
+  preCarregar([...dados.unidades.map((u) => `/api/banco/agenda?unidade_id=${u.id}&dia=${hojeISO()}`),
+    "/api/banco/convocacoes", "/api/banco/metricas", "/api/avisos"]);
 }
 
 const unidade = () => dados.unidades.find((u) => u.id === unidadeId);
@@ -46,29 +58,63 @@ function ligarSeletor(corpo, telaId) {
   });
 }
 
-/* ---- ESTOQUE ---------------------------------------------------------------- */
+/* ---- ESTOQUE (opção A: barra com faixas) ------------------------------------- */
+// A barra vai de 0 até 1,5× o limite de atenção (ou a quantidade, se for maior):
+// vermelho até o limite crítico, laranja até o de atenção, verde acima; o risco branco é o estoque de hoje.
+function barra(t) {
+  const max = Math.max(t.quantidade, Math.ceil(t.limite_atencao * 1.5), 1);
+  const pc = (v) => Math.min(100, (100 * v) / max);
+  const crit = pc(t.limite_critico + 0.5);
+  const aten = pc(t.limite_atencao + 0.5) - crit;
+  return `<div class="barra-estoque" role="img" aria-label="${esc(t.tipo)}: ${t.quantidade} bolsas, ${esc(NIVEL_TEXTO[t.nivel])}">
+    <i class="z-crit" style="width:${crit}%"></i><i class="z-aten" style="width:${aten}%"></i><i class="z-norm"></i>
+    <span class="marcador" style="left:${Math.max(1.5, Math.min(98.5, pc(t.quantidade)))}%"></span></div>`;
+}
+function frase(t) {
+  if (t.nivel === "NORMAL") return t.previsao_dias !== null && t.previsao_dias <= 7 ? `Estoque bom · dura cerca de ${t.previsao_dias} dias` : "Estoque bom";
+  const faltam = `Faltam ${t.faltam} bolsa${t.faltam === 1 ? "" : "s"}${t.nivel === "CRITICO" ? "" : " para o normal"}`;
+  return t.nivel === "CRITICO" ? `${faltam} · <button type="button" class="link-convocar" data-ir-convocar="${esc(t.tipo)}">convocar</button>` : faltam;
+}
+function previsao(t) {
+  if (t.previsao_dias === null || t.previsao_dias === undefined) return "";
+  const d = t.previsao_dias;
+  const texto = d === 0 ? "acaba hoje no ritmo atual" : `acaba em cerca de ${d} dia${d === 1 ? "" : "s"}`;
+  return d <= 7 ? `<div class="previsao ${d <= 3 ? "urgente" : ""}">⏳ ${texto}</div>` : "";
+}
+
 async function telaEstoque() {
   dados = await api("/api/banco/painel");
   const u = unidade();
   if (!u) return '<p class="vazio">Este banco ainda não tem unidades. Fale com a equipe HemoFlow.</p>';
   const criticos = u.termometro.filter((t) => t.nivel === "CRITICO");
+  const acabando = u.termometro.filter((t) => t.nivel !== "CRITICO" && t.previsao_dias !== null && t.previsao_dias <= 3);
   return `${seletorUnidade()}
-    ${criticos.length ? `<div class="aviso-suave"><strong>Atenção:</strong> ${criticos.map((t) => esc(t.tipo)).join(", ")} em nível crítico. <button type="button" class="btn btn-pequeno btn-primario" data-ir-convocar="${esc(criticos[0].tipo)}">Convocar doadores</button></div>` : ""}
+    ${criticos.length ? `<div class="alerta-critico" role="alert"><strong>🔴 ${criticos.map((t) => esc(t.tipo)).join(", ")} em nível crítico.</strong>
+      <span>Convoque doadores compatíveis agora.</span> <button type="button" class="btn btn-pequeno btn-primario" data-ir-convocar="${esc(criticos[0].tipo)}">Convocar agora</button></div>` : ""}
+    ${acabando.length ? `<div class="aviso-suave"><strong>⏳ Previsão:</strong> ${acabando.map((t) => `${esc(t.tipo)} acaba em cerca de ${t.previsao_dias} dia${t.previsao_dias === 1 ? "" : "s"}`).join(" · ")}. Convocar antes evita o crítico.</div>` : ""}
     <section class="cartao"><div class="cartao-titulo"><h2>Bolsas por tipo</h2><span class="espaco"></span><span class="muted pequeno">Toque no tipo para ajustar ou mudar os limites</span></div>
-    <div class="estoque-grade">${u.termometro
+    <div class="estoque-barras">${u.termometro
       .map(
-        (t) => `<div class="estoque-item cartao" style="margin:0">
-          <button type="button" data-ajustar="${esc(t.tipo)}" style="border:0;background:none;width:100%" aria-label="Ajustar ${esc(t.tipo)}">${termometro(t.nivel, t.tipo, false)}</button>
-          <div class="qtd">${t.quantidade}</div><span class="selo ${t.nivel}">${NIVEL_TEXTO[t.nivel]}</span>
-          <div class="muted pequeno" style="margin-top:4px">crítico ≤ ${t.limite_critico} · atenção ≤ ${t.limite_atencao}${t.editado_admin ? "<br>editado pelo admin" : ""}</div>
+        (t) => `<div class="estoque-cartao nivel-${t.nivel}">
+          <button type="button" class="estoque-topo" data-ajustar="${esc(t.tipo)}" aria-label="Ajustar ${esc(t.tipo)}"><span class="tipo-nome">${esc(t.tipo)}</span><span class="tipo-qtd">${t.quantidade}</span></button>
+          ${barra(t)}
+          <span class="selo ${t.nivel}">${NIVEL_TEXTO[t.nivel]}</span>
+          <div class="frase-estoque">${frase(t)}</div>${previsao(t)}
+          ${t.editado_admin ? '<div class="muted pequeno">editado pelo admin</div>' : ""}
           <div class="botoes"><button type="button" data-mov="SAIDA" data-tipo="${esc(t.tipo)}" aria-label="Saída de 1 bolsa ${esc(t.tipo)}">−</button>
           <button type="button" data-mov="ENTRADA" data-tipo="${esc(t.tipo)}" aria-label="Entrada de 1 bolsa ${esc(t.tipo)}">+</button></div></div>`,
       )
-      .join("")}</div></section>
+      .join("")}</div>
+    <p class="muted pequeno" style="margin:12px 0 0">Barra: vermelho = crítico, laranja = atenção, verde = normal; o risco branco é o estoque de hoje. A previsão usa a média de saídas dos últimos 30 dias.</p></section>
     <section class="cartao"><h2>Últimos movimentos</h2>
     ${u.movimentos.length ? `<div class="tabela-wrap"><table><thead><tr><th>Quando</th><th>Tipo</th><th>Movimento</th><th>Qtd.</th><th>Motivo</th></tr></thead><tbody>${u.movimentos
       .map((m) => `<tr><td>${dataBR(m.criado_em)} ${hora(m.criado_em)}</td><td>${esc(m.tipo_sanguineo)}</td><td>${esc(m.movimento)}</td><td>${m.quantidade}</td><td>${esc(m.motivo || "")}</td></tr>`)
       .join("")}</tbody></table></div>` : '<p class="vazio">Nenhum movimento ainda.</p>'}</section>`;
+}
+async function registrar(corpo) {
+  const r = await api("/api/banco/estoque/movimento", { unidade_id: unidadeId, ...corpo });
+  aviso(r.mensagem);
+  painel.ir("estoque");
 }
 function ligarEstoque(corpo) {
   ligarSeletor(corpo, "estoque");
@@ -79,35 +125,57 @@ function ligarEstoque(corpo) {
       tipoConvocar = b.dataset.irConvocar;
       return painel.ir("convocar");
     }
-    if (b.dataset.mov) {
+    if (b.dataset.mov === "ENTRADA") {
       b.disabled = true;
       try {
-        const r = await api("/api/banco/estoque/movimento", { unidade_id: unidadeId, tipo_sanguineo: b.dataset.tipo, movimento: b.dataset.mov, quantidade: 1, motivo: b.dataset.mov === "ENTRADA" ? "Entrada rápida" : "Saída rápida" });
-        aviso(r.mensagem);
-        painel.ir("estoque");
+        await registrar({ tipo_sanguineo: b.dataset.tipo, movimento: "ENTRADA", quantidade: 1, motivo: "Entrada rápida" });
       } catch (e) {
         b.disabled = false;
         erro(e);
       }
     }
+    if (b.dataset.mov === "SAIDA") saidaRapida(b.dataset.tipo);
     if (b.dataset.ajustar) abrirAjuste(b.dataset.ajustar);
   });
+}
+// Saída de 1 bolsa: a equipe diz se foi para paciente (avisa os doadores) ou descarte
+function saidaRapida(tipo) {
+  const c = janela(`Saída de 1 bolsa ${tipo}`, `<p>Para onde foi a bolsa?</p>
+    <div class="linha-flex"><button type="button" class="btn btn-primario" data-destino="paciente">Uso em paciente</button>
+    <button type="button" class="btn btn-claro" data-destino="descarte">Descarte / vencimento</button></div>
+    <p class="muted pequeno" style="margin-top:12px">“Uso em paciente” manda um agradecimento aos doadores de ${esc(tipo)} que doaram aqui nas últimas semanas (sem dados do paciente).</p>`);
+  c.querySelectorAll("[data-destino]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const paciente = b.dataset.destino === "paciente";
+      try {
+        fecharJanela();
+        await registrar({ tipo_sanguineo: tipo, movimento: "SAIDA", quantidade: 1, para_paciente: paciente, motivo: paciente ? "Uso em paciente" : "Descarte / vencimento" });
+      } catch (e) {
+        erro(e);
+      }
+    }),
+  );
 }
 function abrirAjuste(tipo) {
   const t = unidade().termometro.find((x) => x.tipo === tipo);
   const c = janela(`Estoque ${tipo}`, `
+    <p class="aviso-suave" style="margin-bottom:16px">Hoje: <strong>${t.quantidade} bolsas</strong>. Fica <strong>crítico</strong> com ${t.limite_critico} bolsas ou menos e em <strong>atenção</strong> com ${t.limite_atencao} ou menos.</p>
     <form id="f-mov"><h3>Movimento</h3><div class="duas">
-      <label>Tipo de movimento <select name="movimento"><option value="ENTRADA">Entrada</option><option value="SAIDA">Saída</option><option value="AJUSTE">Ajuste (contagem)</option></select></label>
+      <label>Tipo de movimento <select name="movimento" id="mov-tipo"><option value="ENTRADA">Entrada</option><option value="SAIDA">Saída</option><option value="AJUSTE">Ajuste (contagem)</option></select></label>
       <label>Quantidade <input name="quantidade" type="number" min="0" value="1" required /></label></div>
+      <label class="check hidden" id="mov-paciente"><input type="checkbox" name="para_paciente" checked /> Uso em paciente (avisa os doadores com um agradecimento)</label>
       <label>Motivo <input name="motivo" placeholder="Ex.: coleta do dia, transfusão, contagem" /></label>
       <p class="erro hidden"></p><button class="btn btn-primario cheio" type="submit">Registrar</button></form>
-    <form id="f-lim" style="margin-top:20px"><h3>Limites do termômetro</h3><div class="duas">
-      <label>Crítico até <input name="limite_critico" type="number" min="0" value="${t.limite_critico}" /></label>
-      <label>Atenção até <input name="limite_atencao" type="number" min="0" value="${t.limite_atencao}" /></label></div>
+    <form id="f-lim" style="margin-top:20px"><h3>Limites</h3><div class="duas">
+      <label>Fica crítico com até <input name="limite_critico" type="number" min="0" value="${t.limite_critico}" /></label>
+      <label>Fica em atenção com até <input name="limite_atencao" type="number" min="0" value="${t.limite_atencao}" /></label></div>
       <p class="erro hidden"></p><button class="btn btn-claro cheio" type="submit">Salvar limites</button></form>`);
+  $("#mov-tipo", c).addEventListener("change", (ev) => $("#mov-paciente", c).classList.toggle("hidden", ev.target.value !== "SAIDA"));
   aoEnviar($("#f-mov", c), async (d) => {
-    aviso((await api("/api/banco/estoque/movimento", { ...d, quantidade: Number(d.quantidade), unidade_id: unidadeId, tipo_sanguineo: tipo })).mensagem);
+    // o erro (ex.: saída maior que o estoque) aparece dentro da janela; só fecha se deu certo
+    const r = await api("/api/banco/estoque/movimento", { ...d, quantidade: Number(d.quantidade), unidade_id: unidadeId, tipo_sanguineo: tipo, para_paciente: d.movimento === "SAIDA" && d.para_paciente });
     fecharJanela();
+    aviso(r.mensagem);
     painel.ir("estoque");
   });
   aoEnviar($("#f-lim", c), async (d) => {
@@ -245,9 +313,11 @@ function ligarConfirmar(corpo) {
   $("#f-confirmar input", corpo).focus();
   aoEnviar($("#f-confirmar", corpo), async (d, form) => {
     const r = await api("/api/banco/confirmar", { codigo: d.codigo });
-    $("#confirmado", corpo).innerHTML = `<p class="sucesso" style="margin-top:14px">✅ ${esc(r.mensagem)}</p>`;
+    $("#confirmado", corpo).innerHTML = r.enfileirado
+      ? `<p class="aviso-suave" style="margin-top:14px">📥 ${esc(r.mensagem)} (código ${esc(d.codigo)})</p>`
+      : `<p class="sucesso" style="margin-top:14px">✅ ${esc(r.mensagem)}</p>`;
     form.reset();
-    aviso("Doação verificada. Obrigado!");
+    if (!r.enfileirado) aviso("Doação verificada. Obrigado!");
   });
 }
 

@@ -26,6 +26,15 @@ A versão 1 controlava bolsas dentro de um hemocentro. A 2.0 muda o foco para **
 | **Parceiro** (painel web) | Validação de cupom (uso único); cadastro de ofertas (aprovadas pela equipe); para cursinhos e faculdades, código dos alunos e relatório só com números gerais |
 | **Admin — equipe HemoFlow** | Acesso total: bancos, unidades, hemocentros públicos, parceiros, ofertas, doadores e contas; “entrar como” banco, parceiro ou doador; tudo registrado na auditoria |
 
+### Novidades da versão 2.1 (19/11/2026)
+
+| Onde | O que entrou |
+|---|---|
+| **Banco de sangue** | Estoque em **barras com faixas** (vermelho/laranja/verde) e frases como “Faltam 3 bolsas para o normal”; **previsão** “O− acaba em cerca de 4 dias” (média de saídas dos últimos 30 dias); **alerta automático** no sino quando um tipo entra no crítico, com atalho para convocar; **encaixe automático**: quando um doador cancela, até 3 convocados recebem a vaga |
+| **Doador** | **Contagem** para a próxima doação (anel); **níveis e medalhas** (🌱 → 🦸) com comemoração; **card “Eu doei sangue”** para o story do Instagram/WhatsApp; aviso **“Doações como a sua salvam vidas”** quando o banco registra saída de bolsa para paciente (mensagem honesta: o sistema conta bolsas por tipo, não bolsa por bolsa) |
+| **Parceiro** | Painel de **impacto** (“ajudou 9 doadores este mês”) e **selo “Parceiro HemoFlow”** com QR Code para imprimir; **oferta de emergência** por 7 dias para um tipo em falta na cidade; **declaração de doação** para alunos de cursinhos/faculdades, com código que a instituição verifica |
+| **Todos** | **Consulta sem internet**: o app mostra os últimos dados com a faixa “Sem internet · dados de …”; a confirmação de doação feita offline vai para uma **fila** e é enviada quando a conexão volta; tudo é apagado ao tocar em Sair |
+
 Regras principais (em `regras.py`, com testes): intervalo de 60 dias (homens) e 90 dias (mulheres), limite de 4 e 3 doações por ano, idade de 16 a 69 anos com autorização do responsável para 16 e 17, compatibilidade sanguínea, níveis do termômetro e cálculo de quantos doadores convocar (considerando que cerca de metade comparece). Cupons exigem doação verificada nos últimos 6 meses. O app faz uma pré-checagem e a triagem do banco de sangue dá a palavra final.
 
 **Concepção da versão 2.0 e proposta do novo front-end: João Manoel da Silva Oliveira.**
@@ -70,6 +79,7 @@ Pré-requisitos: Python 3.10 ou superior e MySQL 8 com o banco `hemoflow` criado
 ```powershell
 pip install -r requirements.txt
 python scripts/migracao_005_v2.py        # uma vez, depois de um backup (scripts/auditar_e_backup_banco.ps1)
+python scripts/migracao_006_v21.py       # versão 2.1 (oferta de emergência e declarações)
 python scripts/dev.py                     # pede a senha do root do MySQL e reinicia sozinho a cada mudança
 ```
 
@@ -87,7 +97,7 @@ Contas de demonstração no computador: `admin@`, `captacao1@`, `captacao2@`, `p
 python -m unittest tests.test_regras tests.test_seguranca tests.test_recuperacao tests.test_email -v
 ```
 
-São 44 testes que não precisam de banco (regras de negócio, segurança, recuperação de senha e e-mail). Há também os testes de ponta a ponta da 2.0, que rodam contra o servidor local com os dados de demonstração:
+São 47 testes que não precisam de banco (regras de negócio, segurança, recuperação de senha e e-mail). Há também os testes de ponta a ponta da 2.0, que rodam contra o servidor local com os dados de demonstração:
 
 ```powershell
 $env:HEMOFLOW_TESTE_URL="http://127.0.0.1:8000"; python -m unittest tests.test_v2_fluxos -v

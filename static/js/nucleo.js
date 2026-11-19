@@ -6,6 +6,9 @@
  *   janela() ......... janela (modal) reutilizável
  *   preferencias ..... tema claro/escuro, tamanho da letra, alto contraste, menos movimento
  *   icone() .......... ícones SVG desenhados aqui mesmo (sem biblioteca externa)
+ *   SEM INTERNET ..... guarda a última resposta de cada consulta (só da conta logada, apagada ao Sair),
+ *                      mostra a faixa "Sem internet · dados de ..." e guarda na fila as confirmações
+ *                      de doação feitas offline, enviando quando a conexão volta.
  */
 
 export class ErroApi extends Error {
@@ -13,6 +16,104 @@ export class ErroApi extends Error {
     super(mensagem);
     this.status = status;
   }
+}
+
+/* ---- SEM INTERNET: cache das consultas e fila --------------------------- */
+let dono = null; // id do usuário logado: o cache é separado por conta
+const FILA = "hf-fila";
+const PODE_ENFILEIRAR = ["/api/banco/confirmar"]; // único envio guardado offline (o servidor recusa código repetido)
+const chave = (caminho) => (caminho === "/api/session" ? "hf-cache:sessao" : `hf-cache:${dono}:${caminho}`);
+function guardar(caminho, dados) {
+  if (caminho !== "/api/session" && !dono) return;
+  try {
+    localStorage.setItem(chave(caminho), JSON.stringify({ em: Date.now(), dados }));
+  } catch {
+    /* armazenamento cheio ou bloqueado: segue sem cache */
+  }
+}
+function lerCache(caminho) {
+  try {
+    return JSON.parse(localStorage.getItem(chave(caminho)) || "null");
+  } catch {
+    return null;
+  }
+}
+const lerFila = () => {
+  try {
+    return JSON.parse(localStorage.getItem(FILA) || "[]");
+  } catch {
+    return [];
+  }
+};
+const salvarFila = (f) => {
+  try {
+    localStorage.setItem(FILA, JSON.stringify(f));
+  } catch {
+    /* sem armazenamento */
+  }
+};
+export function definirDono(id) {
+  if (dono !== null && dono !== id) limparDadosLocais();
+  dono = id;
+}
+/** Apaga tudo o que foi guardado neste aparelho (chamado ao Sair e ao trocar de conta). */
+export function limparDadosLocais() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith("hf-cache:") || k === FILA)
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* nada guardado */
+  }
+}
+function faixa() {
+  let f = document.getElementById("faixa-offline");
+  if (!f) {
+    f = document.createElement("div");
+    f.id = "faixa-offline";
+    f.setAttribute("role", "status");
+    document.body.prepend(f);
+  }
+  return f;
+}
+function mostrarOffline(em) {
+  const d = new Date(em);
+  const quando = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} às ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const pendentes = lerFila().length;
+  faixa().textContent = `⚠ Sem internet · mostrando dados de ${quando}` + (pendentes ? ` · ${pendentes} confirmação(ões) na fila` : "");
+  document.body.classList.add("sem-internet");
+}
+function mostrarOnline() {
+  document.body.classList.remove("sem-internet");
+}
+export async function enviarFila() {
+  const fila = lerFila();
+  if (!fila.length || !navigator.onLine) return;
+  const sobra = [];
+  let enviados = 0;
+  for (const item of fila) {
+    try {
+      const r = await fetch(item.caminho, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item.corpo) });
+      const dados = await r.json().catch(() => ({}));
+      if (r.ok) enviados++;
+      else aviso(`Confirmação guardada (código ${item.corpo.codigo}) não foi aceita: ${dados.erro || "erro"}`, "erro");
+    } catch {
+      sobra.push(item); // continua sem conexão: tenta depois
+    }
+  }
+  salvarFila(sobra);
+  if (enviados) aviso(`${enviados} confirmação(ões) guardada(s) sem internet foram enviadas.`);
+}
+addEventListener("online", async () => {
+  mostrarOnline();
+  await enviarFila();
+  document.dispatchEvent(new CustomEvent("hemoflow:online"));
+});
+
+/** Guarda em segundo plano as telas principais, para a consulta sem internet funcionar mesmo nas não abertas. */
+export function preCarregar(caminhos) {
+  if (!navigator.onLine) return;
+  setTimeout(() => caminhos.forEach((c) => api(c).catch(() => {})), 1500);
 }
 
 export async function api(caminho, corpo, metodo) {
@@ -25,7 +126,20 @@ export async function api(caminho, corpo, metodo) {
   try {
     resposta = await fetch(caminho, opcoes);
   } catch {
-    throw new ErroApi("Sem conexão com a internet. Tente de novo em instantes.", 0);
+    if (opcoes.method === "GET") {
+      const c = lerCache(caminho);
+      if (c) {
+        mostrarOffline(c.em);
+        return c.dados;
+      }
+      throw new ErroApi("Sem internet. Esta tela precisa de conexão para ser aberta pela primeira vez neste aparelho.", 0);
+    }
+    if (PODE_ENFILEIRAR.includes(caminho)) {
+      salvarFila([...lerFila(), { caminho, corpo, em: Date.now() }]);
+      mostrarOffline(Date.now());
+      return { ok: true, enfileirado: true, mensagem: "Sem internet: confirmação guardada. Ela será enviada assim que a conexão voltar." };
+    }
+    throw new ErroApi("Sem internet: esta ação precisa de conexão. Os dados continuam disponíveis para consulta.", 0);
   }
   let dados = {};
   try {
@@ -37,6 +151,10 @@ export async function api(caminho, corpo, metodo) {
     document.dispatchEvent(new CustomEvent("hemoflow:sessao-expirada"));
   }
   if (!resposta.ok) throw new ErroApi(dados.erro || "Não foi possível concluir. Tente de novo.", resposta.status);
+  if (opcoes.method === "GET") {
+    guardar(caminho, dados);
+    mostrarOnline();
+  }
   return dados;
 }
 
@@ -237,18 +355,25 @@ export const icone = (nome) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[nome] || ""}</svg>`;
 
 /* ---- avisos do sino ----------------------------------------------------- */
-export async function abrirAvisos(aoMudar) {
+export async function abrirAvisos(aoMudar, aoLink) {
   try {
     const r = await api("/api/avisos");
     const itens = r.avisos.length
       ? r.avisos
           .map(
             (a) => `<li><div class="principal"><strong>${a.lido_em ? "" : "● "}${esc(a.titulo)}</strong>
-              <span class="muted pequeno">${esc(a.mensagem)}</span><br><span class="muted pequeno">${dataBR(a.criado_em)} ${hora(a.criado_em)}</span></div></li>`,
+              <span class="muted pequeno">${esc(a.mensagem)}</span><br><span class="muted pequeno">${dataBR(a.criado_em)} ${hora(a.criado_em)}</span></div>
+              ${a.link && aoLink ? `<button type="button" class="btn btn-pequeno btn-claro" data-aviso-link="${esc(a.link)}">Abrir</button>` : ""}</li>`,
           )
           .join("")
       : '<li class="vazio">Nenhum aviso por enquanto.</li>';
-    janela("Avisos", `<ul class="lista">${itens}</ul>`);
+    const corpo = janela("Avisos", `<ul class="lista">${itens}</ul>`);
+    corpo.querySelectorAll("[data-aviso-link]").forEach((b) =>
+      b.addEventListener("click", () => {
+        fecharJanela();
+        aoLink(b.dataset.avisoLink);
+      }),
+    );
     if (r.nao_lidos) {
       await api("/api/avisos/lidos", {});
       aoMudar?.(0);

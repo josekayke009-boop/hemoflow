@@ -351,3 +351,85 @@ html[data-movimento="reduzido"] #login-cells, html[data-movimento="reduzido"] .l
 .faq summary::after { content: "+"; position: absolute; right: 4px; top: 10px; font-size: 1.4rem; color: var(--marca); }
 .faq details[open] summary::after { content: "−"; }
 .faq details p { margin: 0 0 14px; color: var(--texto-2); }
+
+
+/* ==========================================================================
+   VERSÃO 2.1 — estoque opção A, previsão, contagem, níveis, sem internet, parceiro
+   ========================================================================== */
+/* Faixa "Sem internet" */
+#faixa-offline { display: none; position: sticky; top: 0; z-index: 60; background: #2b2f4a; color: #fff; padding: 10px 16px; font-weight: 700; text-align: center; font-size: .92rem; }
+body.sem-internet #faixa-offline { display: block; }
+
+/* Estoque: barra com faixas */
+.estoque-barras { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.estoque-cartao { border: 1px solid var(--linha); border-radius: 14px; padding: 14px 12px 12px; background: var(--superficie); text-align: center; }
+.estoque-cartao.nivel-CRITICO { border-color: var(--critico); box-shadow: 0 0 0 3px var(--critico-suave); }
+.estoque-topo { all: unset; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; width: 100%; box-sizing: border-box; }
+.estoque-topo:focus-visible { outline: 3px solid var(--azul); outline-offset: 3px; border-radius: 6px; }
+.tipo-nome { font: 800 1.35rem Manrope, sans-serif; }
+.tipo-qtd { font: 800 1.7rem Manrope, sans-serif; }
+.barra-estoque { position: relative; display: flex; height: 12px; border-radius: 99px; margin: 10px 0 12px; background: var(--superficie-2); }
+.barra-estoque i { display: block; height: 100%; }
+.barra-estoque .z-crit { background: #c0122c; border-radius: 99px 0 0 99px; }
+.barra-estoque .z-aten { background: #d18a1f; }
+.barra-estoque .z-norm { background: #1f8f63; flex: 1; border-radius: 0 99px 99px 0; }
+.barra-estoque .marcador { position: absolute; top: -5px; width: 5px; height: 22px; margin-left: -2px; border-radius: 3px; background: var(--texto); box-shadow: 0 0 0 2px var(--superficie); }
+html[data-tema="escuro"] .barra-estoque .marcador { background: #fff; }
+.frase-estoque { font-size: .85rem; color: var(--texto-2); margin-top: 8px; min-height: 2.4em; }
+.link-convocar { border: 0; background: none; padding: 0; color: var(--critico); font-weight: 800; text-decoration: underline; cursor: pointer; font-size: inherit; }
+.previsao { font-size: .8rem; font-weight: 700; color: var(--atencao); margin-top: 4px; }
+.previsao.urgente { color: var(--critico); }
+.estoque-cartao .botoes { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+.estoque-cartao .botoes button { min-width: 48px; min-height: 44px; border-radius: 12px; border: 1.5px solid var(--linha); background: var(--superficie-2); font-weight: 800; font-size: 1.2rem; }
+.alerta-critico { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; background: var(--critico-suave); color: var(--texto); border: 1px solid var(--critico); border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; }
+.alerta-critico strong { color: var(--critico); }
+
+/* Doador: contagem para a próxima doação */
+.contagem { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
+.anel-contagem { --pct: 0; width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--marca) calc(var(--pct) * 1%), var(--superficie-2) 0); }
+.anel-contagem.pronto { background: conic-gradient(var(--ok) 100%, var(--superficie-2) 0); }
+.anel-contagem > div { width: 86px; height: 86px; border-radius: 50%; background: var(--superficie); display: grid; place-items: center; align-content: center; line-height: 1; text-align: center; }
+.anel-contagem b { font: 800 1.9rem Manrope, sans-serif; }
+.anel-contagem small { font-size: .75rem; color: var(--texto-2); font-weight: 700; }
+.anel-contagem.pronto b { color: var(--ok); }
+
+/* Doador: nível e medalhas */
+.nivel-doador { display: flex; gap: 16px; align-items: center; }
+.medalha { font-size: 2.6rem; width: 72px; height: 72px; flex: none; display: grid; place-items: center; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6, transparent 60%), var(--marca-suave); animation: medalha-brilho 3s ease-in-out infinite; }
+.medalha.grande { font-size: 4.5rem; width: 130px; height: 130px; margin: 0 auto 10px; animation: medalha-entra .9s cubic-bezier(.2, 1.6, .4, 1) both, medalha-brilho 3s 1s ease-in-out infinite; }
+@keyframes medalha-brilho { 50% { transform: scale(1.06) rotate(-4deg); } }
+@keyframes medalha-entra { from { transform: scale(0) rotate(-180deg); opacity: 0; } }
+.comemoracao { position: relative; text-align: center; overflow: hidden; padding-top: 10px; }
+.confete { position: absolute; inset: 0; pointer-events: none; }
+.confete i { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; animation: cai 2.4s ease-in forwards; }
+.confete i:nth-child(3n) { background: #b0102a; }
+.confete i:nth-child(3n+1) { background: #ffb44d; }
+.confete i:nth-child(3n+2) { background: #3ed39a; }
+.confete i:nth-child(1) { left: 5%; animation-delay: .05s; } .confete i:nth-child(2) { left: 11%; animation-delay: .3s; }
+.confete i:nth-child(3) { left: 17%; animation-delay: .1s; } .confete i:nth-child(4) { left: 23%; animation-delay: .45s; }
+.confete i:nth-child(5) { left: 29%; animation-delay: .2s; } .confete i:nth-child(6) { left: 35%; animation-delay: .6s; }
+.confete i:nth-child(7) { left: 41%; animation-delay: 0s; } .confete i:nth-child(8) { left: 47%; animation-delay: .35s; }
+.confete i:nth-child(9) { left: 53%; animation-delay: .15s; } .confete i:nth-child(10) { left: 59%; animation-delay: .5s; }
+.confete i:nth-child(11) { left: 65%; animation-delay: .25s; } .confete i:nth-child(12) { left: 71%; animation-delay: .55s; }
+.confete i:nth-child(13) { left: 77%; animation-delay: .1s; } .confete i:nth-child(14) { left: 83%; animation-delay: .4s; }
+.confete i:nth-child(15) { left: 89%; animation-delay: .2s; } .confete i:nth-child(16) { left: 95%; animation-delay: .65s; }
+.confete i:nth-child(17) { left: 38%; animation-delay: .8s; } .confete i:nth-child(18) { left: 62%; animation-delay: .9s; }
+@keyframes cai { to { transform: translateY(420px) rotate(540deg); opacity: 0; } }
+
+/* Doador: aviso de impacto e oferta de emergência */
+.impacto { background: linear-gradient(135deg, #b0102a, #e0334b); color: #fff; border: 0; }
+.impacto h2 { color: #fff; }
+html[data-tema="escuro"] .impacto { background: linear-gradient(135deg, #8a0b20, #b0102a); }
+.oferta.emergencia { border: 2px solid var(--critico); box-shadow: 0 0 0 4px var(--critico-suave); }
+
+/* Parceiro: impacto e selo */
+.impacto-parceiro { background: linear-gradient(135deg, var(--marca-suave), var(--superficie)); }
+.selo-parceiro { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.selo-parceiro > div:first-child { flex: 1; min-width: 220px; }
+.selo-mini { width: 170px; padding: 14px; border-radius: 16px; text-align: center; color: #fff; background: linear-gradient(150deg, #3a0209, #a50d22 60%, #4b030c); display: grid; gap: 6px; justify-items: center; }
+.selo-mini img { width: 110px; height: 110px; background: #fff; padding: 6px; border-radius: 10px; }
+.selo-mini strong { font: 800 1rem Manrope, sans-serif; }
+.selo-mini small { font-size: .75rem; color: #ffd7db; }
+@media (max-width: 420px) { .contagem { grid-template-columns: 1fr; justify-items: center; text-align: center; } }
