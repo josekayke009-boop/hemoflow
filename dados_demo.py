@@ -51,6 +51,8 @@ BANCOS = [
 ESTOQUE = {  # tipo: (quantidade Vida, quantidade Esperança)
     "O-": (4, 9), "O+": (38, 22), "A-": (9, 14), "A+": (31, 18), "B-": (3, 6), "B+": (17, 12), "AB-": (5, 4), "AB+": (12, 9),
 }
+# Saídas nos últimos 30 dias (Vida, Esperança): alimentam a previsão "acaba em cerca de N dias"
+SAIDAS_30D = {"O-": (30, 18), "O+": (66, 40), "A-": (14, 12), "A+": (48, 30), "B-": (12, 8), "B+": (20, 15), "AB-": (6, 5), "AB+": (10, 8)}
 LIMITES = {"O-": (5, 12), "O+": (10, 20), "A-": (5, 10), "A+": (10, 20), "B-": (4, 8), "B+": (6, 12), "AB-": (3, 6), "AB+": (4, 8)}
 PARCEIROS = [
     ("Padaria Pão Quente", "COMERCIO", "Caruaru", None, "Café da manhã grátis no dia da doação", "Mostre o cupom no caixa."),
@@ -145,8 +147,15 @@ def semear():
                 crit, aten = LIMITES[tipo]
                 cur.execute("""INSERT INTO estoque_niveis (unidade_id, tipo_sanguineo, quantidade, limite_critico, limite_atencao)
                                VALUES (%s,%s,%s,%s,%s)""", (uid, tipo, qtds[i], crit, aten))
-                cur.execute("""INSERT INTO estoque_movimentos (unidade_id, tipo_sanguineo, movimento, quantidade, motivo)
-                               VALUES (%s,%s,'AJUSTE',%s,'Contagem inicial (demonstração)')""", (uid, tipo, qtds[i]))
+                cur.execute("""INSERT INTO estoque_movimentos (unidade_id, tipo_sanguineo, movimento, quantidade, motivo, criado_em)
+                               VALUES (%s,%s,'AJUSTE',%s,'Contagem inicial (demonstração)', %s)""",
+                            (uid, tipo, qtds[i], datetime.combine(hoje - timedelta(days=31), datetime.min.time())))
+                total = SAIDAS_30D[tipo][i]
+                for k in range(10):  # 10 saídas espalhadas no mês (só histórico: o estoque atual já é o de ESTOQUE)
+                    cur.execute("""INSERT INTO estoque_movimentos (unidade_id, tipo_sanguineo, movimento, quantidade, motivo, criado_em)
+                                   VALUES (%s,%s,'SAIDA',%s,'Uso em paciente (demonstração)', %s)""",
+                                (uid, tipo, total // 10 + (1 if k < total % 10 else 0),
+                                 datetime.combine(hoje - timedelta(days=28 - 3 * k), datetime.min.time()) + timedelta(hours=10)))
             for d in range(-20, 8):
                 dia = hoje + timedelta(days=d)
                 if dia.weekday() == 6:
@@ -154,7 +163,7 @@ def semear():
                 for h in ("08:00", "09:00", "10:00", "11:00", "14:00", "15:00"):
                     cur.execute("INSERT INTO vagas (unidade_id, inicio, capacidade) VALUES (%s,%s,4)",
                                 (uid, datetime.combine(dia, datetime.strptime(h, "%H:%M").time())))
-        parceiros = []
+        parceiros, ofertas_ids = [], []
         for nome, tipo, cidade, codigo, titulo, desc in PARCEIROS:
             cur.execute("""INSERT INTO parceiros (nome, tipo, cidade, uf, endereco, codigo_alunos, status)
                            VALUES (%s,%s,%s,'PE','Endereço fictício',%s,'ATIVO')""", (f"{nome} {MARCA}", tipo, cidade, codigo))
@@ -162,6 +171,7 @@ def semear():
             parceiros.append(pid)
             cur.execute("""INSERT INTO ofertas (parceiro_id, titulo, descricao, validade, status, destaque)
                            VALUES (%s,%s,%s,%s,'APROVADA',%s)""", (pid, titulo, desc, hoje + timedelta(days=90), int(tipo == "COMERCIO")))
+            ofertas_ids.append(cur.lastrowid)
         cur.execute("""INSERT INTO ofertas (parceiro_id, titulo, descricao, status) VALUES (%s,'10% em bolos','Oferta aguardando aprovação','PENDENTE')""",
                     (parceiros[0],))
         conta(cur, "Padaria Pão Quente", "padaria@exemplo.com", "PARCEIRO", parceiro_id=parceiros[0])
@@ -201,6 +211,12 @@ def semear():
             cur.execute("INSERT INTO historico_doacoes (doador_id, unidade_id, data, status) VALUES (%s,%s,%s,'VERIFICADA')",
                         (did0, unidades[0][1], hoje - timedelta(days=dias)))
         cur.execute("INSERT IGNORE INTO doador_parceiros (doador_id, parceiro_id) VALUES (%s,%s)", (did0, parceiros[1]))
+        # cupons já usados neste mês na padaria (painel de impacto do parceiro)
+        inicio_mes = hoje.replace(day=1)
+        for k, (did, *_resto) in enumerate(doadores[1:10]):
+            usado = datetime.combine(inicio_mes + timedelta(days=k % max(1, hoje.day)), datetime.min.time()) + timedelta(hours=8 + k)
+            cur.execute("""INSERT INTO cupons (oferta_id, doador_id, codigo, expira_em, usado_em) VALUES (%s,%s,%s,%s,%s)""",
+                        (ofertas_ids[0], did, f"DOA-D{k:03d}", hoje + timedelta(days=20), usado))
         # convocação passada com agendamentos (compareceu / faltou) para as métricas
         bid, unid, _ = unidades[0]
         cur.execute("""INSERT INTO convocacoes (banco_id, unidade_id, tipo_sanguineo, bolsas_faltando, mensagem, cidade, uf, criado_em)

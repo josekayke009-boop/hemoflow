@@ -1,6 +1,7 @@
 /*
  * HemoFlow 2.0 — app do doador (pensado para celular; instalado como PWA pelo QR code)
- *   Início ...... termômetro do seu tipo, convocações, próximo agendamento, impacto
+ *   Início ...... termômetro do seu tipo, convocações, próximo agendamento, contagem para a próxima
+ *                 doação, nível e medalhas (com comemoração), card para compartilhar e aviso de impacto
  *   Agendar ..... escolhe o local, o dia e o horário (o banco de sangue é avisado na hora)
  *   Vantagens ... ofertas de parceiros e cupons (liberados com doação verificada nos últimos 6 meses)
  *   Perfil ...... direitos, grupos, histórico, dados, acessibilidade e sair
@@ -8,6 +9,7 @@
 import {
   api, $, $$, esc, cru, html, aviso, erro, janela, fecharJanela, aoEnviar, dataBR, hora, diaSemana, hojeISO,
   NIVEL_TEXTO, TIPOS, TIPO_PARCEIRO, icone, termometro, abrirAvisos, blocoAcessibilidade, ligarAcessibilidade, opcoesUF,
+  preCarregar,
 } from "./nucleo.js";
 import { telaAjuda, ligarAjuda } from "./ajuda.js";
 
@@ -36,10 +38,13 @@ export async function montar(elemento, u, ctx) {
         .join("")}
     </nav>`;
   $$(".menu-inferior button", raiz).forEach((b) => b.addEventListener("click", () => irPara(b.dataset.aba)));
-  $("#d-sino", raiz).addEventListener("click", () => abrirAvisos(marcarSino));
+  $("#d-sino", raiz).addEventListener("click", () => abrirAvisos(marcarSino, (link) => irPara(link === "agendar" ? "agendar" : "inicio")));
+  document.addEventListener("hemoflow:online", () => document.body.contains(raiz) && irPara(aba));
   $("#d-ajuda", raiz).addEventListener("click", () => irPara("ajuda"));
   $("#d-conteudo", raiz).addEventListener("click", cliques);
   await irPara("inicio");
+  preCarregar(["/api/doador/vantagens", "/api/doador/historico", "/api/doador/direitos", "/api/doador/grupos",
+    "/api/doador/perfil", "/api/doador/locais", "/api/avisos"]);
 }
 
 function marcarSino(n) {
@@ -80,6 +85,11 @@ async function inicio() {
   partes.push(html`<div class="saudacao"><p class="muted" style="margin:0">Olá,</p>
     <h1>${d.primeiro_nome} <span class="selo" style="vertical-align:middle">${d.tipo_sanguineo}</span></h1></div>`);
 
+  if (r.impacto) {
+    partes.push(html`<section class="cartao impacto" role="status">
+      <h2>Doações como a sua salvam vidas 💛</h2><p style="margin:0">${r.impacto.mensagem}</p></section>`);
+  }
+
   if (r.proximo_agendamento) {
     const p = r.proximo_agendamento;
     partes.push(html`<section class="cartao">
@@ -101,12 +111,8 @@ async function inicio() {
     </section>`);
   }
 
-  partes.push(html`<section class="cartao">
-    <div class="cartao-titulo">${cru(icone("gota"))}<h2>${apt.apto ? "Você já pode doar" : "Próxima doação"}</h2></div>
-    <p>${apt.apto ? (r.doacoes ? "Pela sua última doação, você está liberado. Agende quando puder." : "Escolha um horário em Agendar. A triagem no banco de sangue confirma se está tudo certo.") : cru(`Você poderá doar a partir de <strong>${esc(dataBR(apt.a_partir_de))}</strong>.`)}
-    ${apt.motivo ? cru(`<br><span class="muted">${esc(apt.motivo)}</span>`) : ""}</p>
-    <p class="muted pequeno" style="margin:0">Doações nos últimos 12 meses: ${apt.doacoes_12m} de ${apt.limite_anual}.</p>
-  </section>`);
+  partes.push(cru(cartaoContagem(r)));
+  partes.push(cru(cartaoNivel(r)));
 
   // Termômetro (opção A): o tipo do doador em destaque + grade dos 8 tipos
   if (r.bancos.length) {
@@ -137,8 +143,136 @@ async function inicio() {
       const b = cache.inicio.bancos.find((x) => String(x.unidade_id) === ev.target.value);
       $("#d-grade").innerHTML = gradeTipos(b, d.tipo_sanguineo);
     });
+    comemorarNivel(r);
   });
   return partes.join("");
+}
+
+/* Contagem para a próxima doação: anel que enche conforme os dias passam desde a última doação */
+function diasAte(iso) {
+  const [a, m, d] = iso.split("-").map(Number);
+  const hoje = new Date();
+  return Math.round((new Date(a, m - 1, d) - new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())) / 86400000);
+}
+function cartaoContagem(r) {
+  const apt = r.aptidao;
+  const faltam = apt.apto ? 0 : Math.max(0, diasAte(apt.a_partir_de));
+  const intervalo = r.intervalo_dias || 60;
+  const pct = apt.apto ? 100 : Math.max(4, Math.min(100, Math.round(100 * (1 - faltam / intervalo))));
+  const centro = apt.apto ? `<b>✓</b><small>liberado</small>` : `<b>${faltam}</b><small>dia${faltam === 1 ? "" : "s"}</small>`;
+  const texto = apt.apto
+    ? r.doacoes
+      ? "Você já pode doar de novo! Escolha um horário: o banco de sangue é avisado na hora."
+      : "Escolha um horário em Agendar. A triagem no banco de sangue confirma se está tudo certo."
+    : `Faltam ${faltam} dia${faltam === 1 ? "" : "s"}: você poderá doar a partir de <strong>${esc(dataBR(apt.a_partir_de))}</strong>. Avisamos você no dia.`;
+  return `<section class="cartao contagem">
+    <div class="anel-contagem${apt.apto ? " pronto" : ""}" style="--pct:${pct}" role="img" aria-label="${apt.apto ? "Liberado para doar" : `Faltam ${faltam} dias`}"><div>${centro}</div></div>
+    <div><h2>${apt.apto ? "Você já pode doar" : "Próxima doação"}</h2><p style="margin:0 0 6px">${texto}</p>
+    ${apt.motivo ? `<p class="muted pequeno" style="margin:0 0 6px">${esc(apt.motivo)}</p>` : ""}
+    <p class="muted pequeno" style="margin:0">Doações nos últimos 12 meses: ${apt.doacoes_12m} de ${apt.limite_anual}.</p>
+    ${apt.apto ? '<button type="button" class="btn btn-primario" data-ir-aba="agendar" style="margin-top:10px">Agendar agora</button>' : ""}</div>
+  </section>`;
+}
+
+/* Nível do doador (medalhas) + botão de compartilhar */
+function cartaoNivel(r) {
+  const n = r.nivel;
+  const prox = n.proximo ? `<p class="muted pequeno" style="margin:6px 0 0">Mais ${n.faltam} ${n.faltam === 1 ? "doação" : "doações"} para ${esc(n.proximo)}</p>
+      <div class="progresso" role="progressbar" aria-valuenow="${n.progresso}" aria-valuemin="0" aria-valuemax="100"><span style="width:${n.progresso}%;background:var(--marca)"></span></div>`
+    : '<p class="muted pequeno" style="margin:6px 0 0">Você chegou ao nível máximo. Obrigado!</p>';
+  return `<section class="cartao nivel-doador">
+    <div class="medalha" aria-hidden="true">${n.emoji}</div>
+    <div style="flex:1"><span class="muted pequeno">Seu nível</span><h2 style="margin:0">${esc(n.nome)}</h2>${prox}
+      <div class="linha-flex" style="margin-top:12px">
+        <span class="muted pequeno">${r.doacoes} doaç${r.doacoes === 1 ? "ão" : "ões"} · até ${r.vidas} vidas</span><span class="espaco"></span>
+        ${r.doacoes ? '<button type="button" class="btn btn-pequeno btn-claro" data-compartilhar>📣 Compartilhar</button>' : ""}
+      </div></div>
+  </section>`;
+}
+
+/* Comemoração quando o doador sobe de nível (lembra o último nível visto neste aparelho) */
+function comemorarNivel(r) {
+  const chave = `hf-nivel:${usuario.id}`;
+  let visto = null;
+  try {
+    visto = localStorage.getItem(chave);
+    localStorage.setItem(chave, r.nivel.nome);
+  } catch {
+    return;
+  }
+  if (!visto || visto === r.nivel.nome || !r.doacoes) return;
+  const c = janela("Novo nível!", `<div class="comemoracao"><div class="confete" aria-hidden="true">${"<i></i>".repeat(18)}</div>
+    <div class="medalha grande">${r.nivel.emoji}</div><h2>${esc(r.nivel.nome)}</h2>
+    <p>Você subiu de nível com ${r.doacoes} doações. Cada doação pode ajudar até 4 pessoas.</p>
+    <button type="button" class="btn btn-primario cheio" data-compartilhar-janela>📣 Compartilhar</button></div>`);
+  c.querySelector("[data-compartilhar-janela]").addEventListener("click", () => compartilhar(r));
+}
+
+/* Card para compartilhar (story 1080×1920) desenhado em canvas */
+function carregarImagem(src) {
+  return new Promise((ok) => {
+    const img = new Image();
+    img.onload = () => ok(img);
+    img.onerror = () => ok(null);
+    img.src = src;
+  });
+}
+async function compartilhar(r) {
+  const c = document.createElement("canvas");
+  c.width = 1080;
+  c.height = 1920;
+  const g = c.getContext("2d");
+  const fundo = g.createLinearGradient(0, 0, 1080, 1920);
+  fundo.addColorStop(0, "#3a0209");
+  fundo.addColorStop(0.5, "#a50d22");
+  fundo.addColorStop(1, "#4b030c");
+  g.fillStyle = fundo;
+  g.fillRect(0, 0, 1080, 1920);
+  g.fillStyle = "rgba(255,255,255,0.07)";
+  for (let i = 0; i < 14; i++) {
+    g.beginPath();
+    g.arc((i * 233) % 1080, (i * 389) % 1920, 40 + ((i * 37) % 90), 0, Math.PI * 2);
+    g.fill();
+  }
+  const logo = await carregarImagem("/img/hemoflow-icone.png");
+  if (logo) g.drawImage(logo, 440, 260, 200, 200);
+  g.textAlign = "center";
+  g.fillStyle = "#fff";
+  g.font = "800 64px Manrope, 'DM Sans', sans-serif";
+  g.fillText("HemoFlow", 540, 560);
+  g.font = "800 120px Manrope, 'DM Sans', sans-serif";
+  g.fillText("EU DOEI", 540, 860);
+  g.fillText("SANGUE", 540, 990);
+  g.font = "160px sans-serif";
+  g.fillText(r.nivel.emoji, 540, 1230);
+  g.font = "700 56px 'DM Sans', sans-serif";
+  g.fillText(r.nivel.nome, 540, 1340);
+  g.fillStyle = "#ffd7db";
+  g.font = "500 46px 'DM Sans', sans-serif";
+  g.fillText(`${r.doacoes} doaç${r.doacoes === 1 ? "ão" : "ões"} · posso ter ajudado até ${r.vidas} vidas`, 540, 1430);
+  g.fillStyle = "#fff";
+  g.font = "800 58px Manrope, 'DM Sans', sans-serif";
+  g.fillText("Doe. Volte. Salve vidas.", 540, 1680);
+  g.fillStyle = "#ffd7db";
+  g.font = "500 38px 'DM Sans', sans-serif";
+  g.fillText(location.host, 540, 1760);
+  const blob = await new Promise((ok) => c.toBlob(ok, "image/png"));
+  const arquivo = new File([blob], "eu-doei-sangue-hemoflow.png", { type: "image/png" });
+  const texto = "Eu doei sangue! Doe você também. 🩸 HemoFlow · Doe. Volte. Salve vidas.";
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+      await navigator.share({ files: [arquivo], text: texto });
+      return;
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") return; // a pessoa fechou o compartilhamento
+  }
+  // Computador ou navegador sem compartilhamento: mostra a imagem para salvar
+  // (data: URL, porque a política de segurança do site só aceita imagens do próprio HemoFlow ou data:)
+  const url = c.toDataURL("image/png");
+  return janela("Seu card", `<img src="${url}" alt="Card Eu doei sangue" style="width:100%;max-height:60vh;object-fit:contain;border-radius:14px" />
+    <a class="btn btn-primario cheio" style="margin-top:12px" href="${url}" download="eu-doei-sangue-hemoflow.png">Baixar imagem</a>
+    <p class="muted pequeno" style="margin-top:8px">Depois é só postar no story do Instagram ou mandar no WhatsApp.</p>`);
 }
 
 function textoNivel(nivel, tipo) {
@@ -247,7 +381,8 @@ async function vantagens() {
   const ofertas = r.ofertas.length
     ? r.ofertas
         .map(
-          (o) => `<article class="cartao oferta">
+          (o) => `<article class="cartao oferta${o.emergencia ? " emergencia" : ""}">
+        ${o.emergencia ? `<span class="selo CRITICO">🚨 Oferta de emergência para quem é ${esc(cache.inicio?.doador?.tipo_sanguineo || "do seu tipo")}</span>` : ""}
         <span class="parceiro">${esc(o.parceiro)} · ${esc(TIPO_PARCEIRO[o.tipo] || o.tipo)}</span>
         <h3>${esc(o.titulo)}</h3>
         ${o.descricao ? `<p class="muted" style="margin:0">${esc(o.descricao)}</p>` : ""}
@@ -370,7 +505,9 @@ async function dados() {
       <label>Estado <select name="uf">${opcoesUF(p.uf)}</select></label></div>
       <label class="check"><input type="checkbox" name="consentimento_convocacao" ${p.consentimento_convocacao ? "checked" : ""} /> Quero receber convocações quando meu tipo fizer falta.</label>
       <p class="erro hidden"></p><button class="btn btn-primario cheio" type="submit">Salvar</button></form></section>
-    ${p.parceiros?.length ? `<section class="cartao"><h3>Instituições vinculadas</h3><ul class="lista">${p.parceiros.map((x) => `<li>${esc(x.nome)}</li>`).join("")}</ul></section>` : ""}`;
+    ${p.parceiros?.length ? `<section class="cartao"><h3>Instituições vinculadas</h3><ul class="lista">${p.parceiros
+      .map((x) => `<li><span class="principal">${esc(x.nome)}</span>${x.tipo !== "COMERCIO" ? `<button type="button" class="btn btn-pequeno btn-claro" data-declaracao="${x.id}">📄 Declaração de doação</button>` : ""}</li>`)
+      .join("")}</ul><p class="muted pequeno">A declaração lista suas doações verificadas e tem um código que a instituição confere no HemoFlow.</p></section>` : ""}`;
 }
 
 async function acessibilidade() {
@@ -392,6 +529,9 @@ async function cliques(ev) {
     return irPara("agendar");
   }
   if (alvo.dataset.vaga) return confirmarVaga(alvo);
+  if (alvo.dataset.irAba) return irPara(alvo.dataset.irAba);
+  if ("compartilhar" in alvo.dataset) return compartilhar(cache.inicio).catch(erro);
+  if (alvo.dataset.declaracao) return emitirDeclaracao(Number(alvo.dataset.declaracao), alvo);
   if (alvo.dataset.cancelar) {
     const corpo = janela("Cancelar agendamento?", `<p>O banco de sangue será avisado e a vaga fica livre para outra pessoa.</p>
       <div class="linha-flex"><button class="btn btn-claro" type="button" id="nao">Manter</button><button class="btn btn-perigo" type="button" id="sim">Cancelar doação</button></div>`);
@@ -419,6 +559,39 @@ async function cliques(ev) {
       alvo.disabled = false;
       erro(e);
     }
+  }
+}
+
+/* Declaração de doação para cursinho/faculdade: abre uma página pronta para imprimir ou salvar em PDF */
+async function emitirDeclaracao(parceiroId, botao) {
+  botao.disabled = true;
+  try {
+    const r = await api("/api/doador/declaracoes", { parceiro_id: parceiroId });
+    const linhas = r.doacoes.map((x) => `<tr><td>${dataBR(x.data)}</td><td>${esc(x.local || "")}</td></tr>`).join("");
+    const w = window.open("", "_blank");
+    if (!w) throw new Error("O navegador bloqueou a nova janela. Permita pop-ups para o HemoFlow.");
+    w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Declaração ${esc(r.codigo)}</title>
+      <style>body{font:15px/1.6 Arial,sans-serif;color:#151a2d;max-width:720px;margin:40px auto;padding:0 24px}
+      h1{font-size:22px;margin:0 0 4px}.cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #b0102a;padding-bottom:14px;margin-bottom:24px}
+      .cab img{width:56px;height:56px;border-radius:14px}table{width:100%;border-collapse:collapse;margin:16px 0}td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left}
+      .cod{font:700 18px monospace;letter-spacing:2px;background:#f5f6fa;padding:10px 14px;border-radius:8px;display:inline-block}
+      .rod{margin-top:32px;font-size:12px;color:#5d6785}</style></head><body>
+      <div class="cab"><img src="${location.origin}/img/hemoflow-icone.png" alt=""><div><h1>Declaração de doação de sangue</h1>HemoFlow · Doe. Volte. Salve vidas.</div></div>
+      <p>Declaramos, para fins de apresentação a <strong>${esc(r.instituicao)}</strong>, que <strong>${esc(r.nome)}</strong> (CPF ${esc(r.cpf_mascarado)})
+      tem <strong>${r.doacoes.length} doação(ões) de sangue verificada(s)</strong> por bancos de sangue parceiros do HemoFlow:</p>
+      <table><tr><th>Data</th><th>Local</th></tr>${linhas}</table>
+      <p>Código de verificação: <span class="cod">${esc(r.codigo)}</span></p>
+      <p>A instituição confere a autenticidade no HemoFlow (área do parceiro › Alunos › Verificar declaração).</p>
+      <p class="rod">Emitida em ${dataBR(r.emitida_em)}. O HemoFlow não substitui documento oficial do banco de sangue; para comprovação legal, vale a declaração emitida pelo próprio banco.</p>
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 600); // abre a janela de imprimir (dá para escolher "Salvar como PDF")
+    aviso(`Declaração ${r.codigo} emitida.`);
+  } catch (e) {
+    erro(e);
+  } finally {
+    botao.disabled = false;
   }
 }
 

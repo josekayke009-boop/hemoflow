@@ -134,5 +134,66 @@ class FluxosV2(unittest.TestCase):
         self.assertIn("respons", r["erro"])
 
 
+@unittest.skipUnless(URL.startswith(("http://127.0.0.1", "http://localhost")), "defina HEMOFLOW_TESTE_URL (servidor local)")
+class FluxosV21(unittest.TestCase):
+    """Versão 2.1: previsão, alerta de crítico, aviso de impacto, oferta de emergência e declaração."""
+
+    def doador_com_doacao_verificada(self, banco, unidade):
+        doador = novo_doador()
+        vaga = next(v for v in doador("GET", f"/api/doador/vagas?unidade_id={unidade}")[1]["vagas"] if v["livres"] > 0)
+        ag = doador("POST", "/api/doador/agendar", {"vaga_id": vaga["id"]})[1]
+        self.assertEqual(banco("POST", "/api/banco/confirmar", {"codigo": ag["agendamento"]["codigo"]})[0], 200)
+        return doador
+
+    def test_previsao_e_nivel(self):
+        banco = Cliente().entrar("captacao1@exemplo.com")
+        termometro = banco("GET", "/api/banco/painel")[1]["unidades"][0]["termometro"]
+        self.assertTrue(all("previsao_dias" in t for t in termometro))
+        self.assertTrue(any(t["previsao_dias"] is not None for t in termometro))  # dados demo têm saídas no mês
+        inicio = Cliente().entrar("doador@exemplo.com")("GET", "/api/doador/inicio")[1]
+        self.assertIn("nome", inicio["nivel"])
+        self.assertIn(inicio["intervalo_dias"], (60, 90))
+
+    def test_saida_para_paciente_avisa_doador_e_alerta_critico(self):
+        banco = Cliente().entrar("captacao1@exemplo.com")
+        un = banco("GET", "/api/banco/painel")[1]["unidades"][0]
+        doador = self.doador_com_doacao_verificada(banco, un["id"])
+        o_neg = next(t for t in un["termometro"] if t["tipo"] == "O-")
+        # deixa O- um acima do crítico e tira 1 bolsa para paciente: entra no crítico e avisa o doador
+        banco("POST", "/api/banco/estoque/movimento", {"unidade_id": un["id"], "tipo_sanguineo": "O-", "movimento": "AJUSTE",
+                                                     "quantidade": o_neg["limite_critico"] + 1, "motivo": "teste automático"})
+        st, _ = banco("POST", "/api/banco/estoque/movimento", {"unidade_id": un["id"], "tipo_sanguineo": "O-", "movimento": "SAIDA",
+                                                             "quantidade": 1, "para_paciente": True, "motivo": "teste automático"})
+        self.assertEqual(st, 200)
+        self.assertIsNotNone(doador("GET", "/api/doador/inicio")[1]["impacto"])
+        titulos = [a["titulo"] for a in banco("GET", "/api/avisos")[1]["avisos"]]
+        self.assertIn("O- entrou no nível crítico", titulos)
+        # devolve o estoque como estava
+        banco("POST", "/api/banco/estoque/movimento", {"unidade_id": un["id"], "tipo_sanguineo": "O-", "movimento": "AJUSTE",
+                                                     "quantidade": o_neg["quantidade"], "motivo": "teste automático (volta)"})
+
+    def test_oferta_de_emergencia(self):
+        padaria = Cliente().entrar("padaria@exemplo.com")
+        oferta = next(o for o in padaria("GET", "/api/parceiro/painel")[1]["ofertas"] if o["status"] == "APROVADA")
+        self.assertEqual(padaria("POST", f"/api/parceiro/ofertas/{oferta['id']}/emergencia", {"tipo": "O-"})[0], 200)
+        primeira = Cliente().entrar("doador@exemplo.com")("GET", "/api/doador/vantagens")[1]["ofertas"][0]  # Mariana é O-
+        self.assertTrue(primeira["emergencia"])
+        self.assertEqual(primeira["id"], oferta["id"])
+        padaria("POST", f"/api/parceiro/ofertas/{oferta['id']}/emergencia", {"tipo": None})
+
+    def test_declaracao_para_aluno(self):
+        banco = Cliente().entrar("captacao1@exemplo.com")
+        un = banco("GET", "/api/banco/painel")[1]["unidades"][0]
+        aluno = self.doador_com_doacao_verificada(banco, un["id"])
+        self.assertEqual(aluno("POST", "/api/doador/codigo-parceiro", {"codigo": "APROVA-25"})[0], 200)
+        cursinho = next(x for x in aluno("GET", "/api/doador/perfil")[1]["parceiros"] if x["tipo"] != "COMERCIO")
+        st, dec = aluno("POST", "/api/doador/declaracoes", {"parceiro_id": cursinho["id"]})
+        self.assertEqual(st, 201, dec)
+        st, ver = Cliente()("GET", f"/api/publico/declaracoes/{dec['codigo']}")
+        self.assertEqual((st, ver["valida"], ver["total_doacoes"]), (200, True, 1))
+        self.assertNotIn("Automatico", ver["nome"])  # nome abreviado: só primeiro nome + inicial
+        self.assertEqual(Cliente()("GET", "/api/publico/declaracoes/DEC-XXXXXX")[0], 404)
+
+
 if __name__ == "__main__":
     unittest.main()

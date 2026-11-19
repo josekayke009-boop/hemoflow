@@ -94,5 +94,23 @@ class MetaECuponsTests(unittest.TestCase):
         self.assertEqual(ganhou, {"primeira", "regular", "cinco"})
 
 
+    # --- versão 2.1 ---
+    def test_previsao_do_estoque(self):
+        self.assertEqual(r.previsao_dias(9, 90), 3)      # 3 saídas por dia -> 3 dias
+        self.assertEqual(r.previsao_dias(0, 30), 0)
+        self.assertIsNone(r.previsao_dias(20, 0))        # sem saídas: sem previsão
+
+    def test_alerta_so_na_passagem_para_o_critico(self):
+        self.assertTrue(r.entrou_no_critico(6, 5, 5, 10))
+        self.assertFalse(r.entrou_no_critico(5, 4, 5, 10))   # já estava crítico
+        self.assertFalse(r.entrou_no_critico(12, 8, 5, 10))  # foi só para atenção
+
+    def test_niveis_do_doador(self):
+        self.assertEqual(r.nivel_doador(0)["nome"], "Futuro doador")
+        n = r.nivel_doador(3)
+        self.assertEqual((n["nome"], n["faltam"], n["progresso"]), ("Gota de Prata", 1, 50))
+        self.assertIsNone(r.nivel_doador(20)["proximo"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,7 @@ import { $, $$, esc, icone, abrirAvisos, contarAvisos, janela, blocoAcessibilida
 /**
  * itens: [{ id, titulo, icone, tela: async (corpo) => html, depois?: (corpo) => void }]
  */
-export function montarPainel(raiz, { subtitulo, itens, usuario, ctx }) {
+export function montarPainel(raiz, { subtitulo, itens, usuario, ctx, aoLink }) {
   raiz.innerHTML = `${ctx.faixa}
     <div class="painel">
       <aside class="lateral" aria-label="Menu">
@@ -62,9 +62,11 @@ export function montarPainel(raiz, { subtitulo, itens, usuario, ctx }) {
     if (painel.classList.contains("menu-aberto") && !ev.target.closest(".lateral") && !ev.target.closest("#p-menu"))
       painel.classList.remove("menu-aberto");
   });
-  $("#p-sino").addEventListener("click", () => abrirAvisos(marcar));
+  $("#p-sino").addEventListener("click", () => abrirAvisos(marcar, aoLink));
   $("#p-sair").addEventListener("click", ctx.sair);
   $("#p-aparencia").addEventListener("click", () => ligarAcessibilidade(janela("Letra e tema", blocoAcessibilidade())));
+  // Voltou a internet: recarrega a tela aberta com dados novos
+  document.addEventListener("hemoflow:online", () => document.body.contains(painel) && ir(itens.find((i) => i.titulo === $("#p-titulo").textContent)?.id));
   ir(itens[0].id);
   return { ir, atual: () => $("#p-titulo").textContent };
 }

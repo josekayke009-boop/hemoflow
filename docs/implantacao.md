@@ -87,6 +87,13 @@ Os doadores e bolsas do banco local **não** foram copiados para a nuvem.
 4. (Opcional, para apresentação) no *Console*, rodar `python dados_demo.py`. Sem a variável `HEMOFLOW_DEMO_SENHA`, as contas demo ganham uma senha aleatória que ninguém conhece e o admin mostra cada perfil pelo "Entrar como". São criados bancos, parceiros e doadores **fictícios** (marcados com “(demo)” e e-mails `@exemplo.com`). O admin de demonstração **não** é criado na nuvem e contas de administrador nunca são apagadas.
 5. Conferir `/healthz`, entrar com o admin real e com uma conta demo.
 
+### 5.2 Versão 2.1 (migração 006)
+
+1. Backup: `python scripts/backup_interno.py --usar-variaveis` (Console do serviço `hemoflow`).
+2. `git push` da `main` (o Railway publica sozinho).
+3. Console: `python scripts/migracao_006_v21.py --usar-variaveis` → deve terminar em “tudo aplicado”.
+4. (Opcional) `python dados_demo.py` para recriar os dados fictícios, agora com saídas de estoque no mês (previsão) e cupons usados (impacto do parceiro).
+
 As tabelas da versão 1 (bolsas, movimentações, profissionais) continuam no banco, sem uso, até uma migração 006 de limpeza feita com backup.
 
 ## 6. Backup e restauração

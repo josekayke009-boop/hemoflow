@@ -163,6 +163,8 @@ ROTAS = [
     ("GET", r"/api/doador/vantagens", "doador_vantagens", "DOADOR"),
     ("POST", r"/api/doador/cupons", "doador_gerar_cupom", "DOADOR"),
     ("POST", r"/api/doador/codigo-parceiro", "doador_codigo_parceiro", "DOADOR"),
+    ("POST", r"/api/doador/declaracoes", "doador_declaracao", "DOADOR"),
+    ("GET", r"/api/publico/declaracoes/([A-Za-z0-9-]{4,12})", "verificar_declaracao", None),
     ("GET", r"/api/doador/grupos", "doador_grupos", "DOADOR"),
     ("POST", r"/api/doador/grupos", "doador_criar_grupo", "DOADOR"),
     ("POST", r"/api/doador/grupos/entrar", "doador_entrar_grupo", "DOADOR"),
@@ -184,6 +186,7 @@ ROTAS = [
     ("GET", r"/api/parceiro/painel", "parceiro_painel", "PARCEIRO"),
     ("POST", r"/api/parceiro/ofertas", "parceiro_oferta", "PARCEIRO"),
     ("POST", r"/api/parceiro/cupons/validar", "parceiro_validar", "PARCEIRO"),
+    ("POST", r"/api/parceiro/ofertas/(\d+)/emergencia", "parceiro_emergencia", "PARCEIRO"),
     # admin
     ("GET", r"/api/admin/resumo", "admin_resumo", "ADMINISTRADOR"),
     ("GET", r"/api/admin/bancos", "admin_bancos", "ADMINISTRADOR"),
@@ -218,7 +221,7 @@ class RotasV2:
             achou = padrao.match(caminho)
             if not achou:
                 continue
-            args = [int(g) for g in achou.groups()]
+            args = [int(g) if g.isdigit() else g for g in achou.groups()]  # ids viram número; códigos ficam texto
             dados = self.read_json() if metodo == "POST" else {}
             if papel is None:
                 getattr(self, funcao)(dados, query, *args)
@@ -479,7 +482,17 @@ class RotasV2:
             "aptidao": {**apt, "a_partir_de": data_iso(apt["a_partir_de"])},
             "destaque": destaque, "bancos": bancos, "convocacoes": convocacoes, "proximo_agendamento": proximo,
             "doacoes": len(datas), "vidas": regras.vidas_impactadas(len(datas)), "avisos_nao_lidos": nao_lidos,
+            "impacto": self.ultimo_impacto(),
+            "nivel": regras.nivel_doador(len(datas)), "ultima_doacao": data_iso(max(datas)) if datas else None,
+            "intervalo_dias": regras.INTERVALO_DIAS.get(d["sexo"] or "M", 60),
         })
+
+    def ultimo_impacto(self):
+        """Último aviso "Doações como a sua salvam vidas" dos últimos 7 dias (cartão de destaque na tela Início)."""
+        a = consulta("""SELECT mensagem, criado_em FROM avisos WHERE usuario_id=%s AND titulo=%s
+                        AND criado_em > DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY id DESC LIMIT 1""",
+                     (self.uid(), self.TITULO_IMPACTO), um=True)
+        return {"mensagem": a["mensagem"], "em": data_iso(a["criado_em"])} if a else None
 
     def doador_locais(self, data, query):
         d = self.doador()
@@ -557,7 +570,8 @@ class RotasV2:
         d = self.doador()
 
         def gravar(cur):
-            cur.execute("""SELECT a.id, a.status, v.inicio, u.banco_id FROM agenda_doacoes a JOIN vagas v ON v.id=a.vaga_id
+            cur.execute("""SELECT a.id, a.status, a.unidade_id, v.inicio, u.banco_id, u.nome AS unidade
+                           FROM agenda_doacoes a JOIN vagas v ON v.id=a.vaga_id
                            JOIN unidades u ON u.id=a.unidade_id WHERE a.id=%s AND a.doador_id=%s FOR UPDATE""", (agenda_id, d["id"]))
             a = cur.fetchone()
             if not a or a["status"] != "AGENDADO":
@@ -566,8 +580,24 @@ class RotasV2:
             avisar_equipe_banco(cur, a["banco_id"], "Agendamento cancelado",
                                 f"{primeiro_nome(d['nome'])} cancelou a doação de {a['inicio'].strftime('%d/%m às %H:%M')}. A vaga foi liberada.", "agenda")
             auditar(cur, self.uid(), "CANCELAR", "agenda", "agenda_doacoes", agenda_id)
+            if a["inicio"] > datetime.now():
+                self.encaixar(cur, a, d["id"])
         transacao(gravar)
         self.send_json({"ok": True, "mensagem": "Agendamento cancelado. A vaga foi liberada."})
+
+    def encaixar(self, cur, agendamento, quem_cancelou):
+        """Encaixe automático: a vaga liberada é oferecida a até 3 convocados (últimos 14 dias, mesma unidade)
+        que ainda não agendaram. Quem tocar primeiro em Agendar fica com ela."""
+        cur.execute("""SELECT DISTINCT d.usuario_id FROM convocacao_doadores cd JOIN convocacoes c ON c.id=cd.convocacao_id
+                       JOIN doadores d ON d.id=cd.doador_id
+                       WHERE c.unidade_id=%s AND cd.status='ENVIADA' AND cd.enviada_em > DATE_SUB(NOW(), INTERVAL 14 DAY)
+                         AND d.id<>%s AND d.usuario_id IS NOT NULL
+                         AND NOT EXISTS (SELECT 1 FROM agenda_doacoes x WHERE x.doador_id=d.id AND x.status='AGENDADO')
+                       LIMIT 3""", (agendamento["unidade_id"], quem_cancelou))
+        quando = agendamento["inicio"].strftime("%d/%m às %H:%M")
+        for r in cur.fetchall():
+            avisar(cur, r["usuario_id"], "Abriu uma vaga para você",
+                   f"{agendamento['unidade']} tem um horário livre em {quando}. Toque em Agendar para garantir.", "agendar")
 
     def doador_historico(self, data, query):
         d = self.doador()
@@ -619,15 +649,17 @@ class RotasV2:
         _, verificadas = self.datas_doacao(d)
         pode = regras.pode_gerar_cupom(max(verificadas) if verificadas else None, S.hoje())
         ofertas = consulta("""
-            SELECT o.id, o.titulo, o.descricao, o.validade, o.destaque, p.nome AS parceiro, p.tipo, p.cidade, p.endereco
+            SELECT o.id, o.titulo, o.descricao, o.validade, o.destaque, p.nome AS parceiro, p.tipo, p.cidade, p.endereco,
+                   (o.tipo_emergencia=%s AND o.emergencia_ate >= CURDATE()) AS emergencia
             FROM ofertas o JOIN parceiros p ON p.id=o.parceiro_id AND p.status='ATIVO'
             WHERE o.status='APROVADA' AND (o.validade IS NULL OR o.validade >= CURDATE()) AND p.uf=%s
-            ORDER BY o.destaque DESC, (p.cidade=%s) DESC, o.id DESC""", (d["uf"], d["cidade"]))
+            ORDER BY emergencia DESC, o.destaque DESC, (p.cidade=%s) DESC, o.id DESC""", (d["tipo_sanguineo"], d["uf"], d["cidade"]))
         cupons = consulta("""SELECT c.codigo, c.expira_em, c.usado_em, o.titulo, p.nome AS parceiro, o.id AS oferta_id
                              FROM cupons c JOIN ofertas o ON o.id=c.oferta_id JOIN parceiros p ON p.id=o.parceiro_id
                              WHERE c.doador_id=%s ORDER BY c.id DESC LIMIT 20""", (d["id"],))
         for o in ofertas:
             o["validade"] = data_iso(o["validade"])
+            o["emergencia"] = bool(o["emergencia"])
         for c in cupons:
             c["expira_em"], c["usado_em"] = data_iso(c["expira_em"]), data_iso(c["usado_em"])
         self.send_json({"pode_gerar": pode, "ofertas": ofertas, "cupons": cupons,
@@ -674,6 +706,42 @@ class RotasV2:
         transacao(gravar)
         self.send_json({"ok": True, "mensagem": f"Pronto! Você agora faz parte de {p['nome']}."})
 
+    def doador_declaracao(self, data, query):
+        """Declaração de doação para um cursinho ou faculdade parceira em que o doador está vinculado."""
+        d = self.doador()
+        parceiro_id = inteiro(data.get("parceiro_id"), "a instituição", 1, 10**12)
+        p = consulta("""SELECT p.id, p.nome, p.tipo FROM doador_parceiros dp JOIN parceiros p ON p.id=dp.parceiro_id
+                        WHERE dp.doador_id=%s AND p.id=%s AND p.tipo<>'COMERCIO'""", (d["id"], parceiro_id), um=True)
+        if not p:
+            raise S.ApiError("Você não está vinculado a essa instituição.", 404)
+        doacoes = consulta("""SELECT h.data, COALESCE(u.nome, h.local_texto) AS local FROM historico_doacoes h
+                              LEFT JOIN unidades u ON u.id=h.unidade_id WHERE h.doador_id=%s AND h.status='VERIFICADA'
+                              ORDER BY h.data DESC""", (d["id"],))
+        if not doacoes:
+            raise S.ApiError("A declaração lista doações verificadas pelo banco de sangue. Você ainda não tem nenhuma.", 409)
+        codigo = "DEC-" + codigo_aleatorio(6, string.ascii_uppercase + string.digits)
+
+        def gravar(cur):
+            cur.execute("""INSERT INTO declaracoes (codigo, doador_id, parceiro_id, total_doacoes, ultima_doacao)
+                           VALUES (%s,%s,%s,%s,%s)""", (codigo, d["id"], p["id"], len(doacoes), doacoes[0]["data"]))
+            auditar(cur, self.uid(), "DECLARACAO", "doador", "declaracoes", cur.lastrowid, {"parceiro": p["id"]})
+        transacao(gravar)
+        self.send_json({"ok": True, "codigo": codigo, "nome": d["nome"], "cpf_mascarado": S.mask_cpf(d["cpf"]),
+                        "instituicao": p["nome"], "emitida_em": S.hoje().isoformat(),
+                        "doacoes": [{"data": data_iso(x["data"]), "local": x["local"]} for x in doacoes]}, 201)
+
+    def verificar_declaracao(self, data, query, codigo):
+        """Público: confere se uma declaração existe (mostra só o nome abreviado, por privacidade)."""
+        r = consulta("""SELECT dc.codigo, dc.total_doacoes, dc.ultima_doacao, dc.criado_em, d.nome, p.nome AS instituicao
+                        FROM declaracoes dc JOIN doadores d ON d.id=dc.doador_id JOIN parceiros p ON p.id=dc.parceiro_id
+                        WHERE dc.codigo=%s""", (codigo.upper()[:10],), um=True)
+        if not r:
+            return self.send_json({"valida": False, "erro": "Declaração não encontrada. Confira o código."}, 404)
+        partes = r["nome"].split()
+        self.send_json({"valida": True, "codigo": r["codigo"], "nome": partes[0] + (f" {partes[-1][0]}." if len(partes) > 1 else ""),
+                        "instituicao": r["instituicao"], "total_doacoes": r["total_doacoes"],
+                        "ultima_doacao": data_iso(r["ultima_doacao"]), "emitida_em": data_iso(r["criado_em"])})
+
     def doador_grupos(self, data, query):
         d = self.doador()
         grupos = consulta("""SELECT g.id, g.nome, g.codigo, g.meta FROM grupos g
@@ -712,7 +780,7 @@ class RotasV2:
 
     def doador_perfil(self, data, query):
         d = self.doador()
-        parceiros = consulta("""SELECT p.nome, p.tipo FROM doador_parceiros dp JOIN parceiros p ON p.id=dp.parceiro_id
+        parceiros = consulta("""SELECT p.id, p.nome, p.tipo FROM doador_parceiros dp JOIN parceiros p ON p.id=dp.parceiro_id
                                 WHERE dp.doador_id=%s""", (d["id"],))
         self.send_json({**{k: data_iso(v) for k, v in d.items() if k != "cpf"}, "cpf_mascarado": S.mask_cpf(d["cpf"]),
                         "parceiros": parceiros})
@@ -769,12 +837,16 @@ class RotasV2:
                             (self.banco_id(),))
         for un in unidades:
             niveis = {l["tipo_sanguineo"]: l for l in consulta("SELECT * FROM estoque_niveis WHERE unidade_id=%s", (un["id"],))}
+            saidas = {l["tipo_sanguineo"]: int(l["n"]) for l in consulta(
+                """SELECT tipo_sanguineo, SUM(quantidade) AS n FROM estoque_movimentos WHERE unidade_id=%s AND movimento='SAIDA'
+                   AND criado_em > DATE_SUB(NOW(), INTERVAL %s DAY) GROUP BY tipo_sanguineo""", (un["id"], regras.JANELA_PREVISAO_DIAS))}
             un["termometro"] = []
             for tipo in regras.TIPOS:
                 l = niveis.get(tipo) or {"quantidade": 0, "limite_critico": 5, "limite_atencao": 10, "atualizado_em": None, "editado_admin": 0}
                 un["termometro"].append({"tipo": tipo, "quantidade": l["quantidade"], "limite_critico": l["limite_critico"],
                                          "limite_atencao": l["limite_atencao"], "nivel": regras.nivel(l["quantidade"], l["limite_critico"], l["limite_atencao"]),
                                          "faltam": regras.bolsas_faltando(l["quantidade"], l["limite_atencao"]),
+                                         "previsao_dias": regras.previsao_dias(l["quantidade"], saidas.get(tipo, 0)),
                                          "atualizado_em": data_iso(l["atualizado_em"]), "editado_admin": bool(l["editado_admin"])})
             un["movimentos"] = consulta("""SELECT tipo_sanguineo, movimento, quantidade, motivo, criado_em FROM estoque_movimentos
                                            WHERE unidade_id=%s ORDER BY id DESC LIMIT 12""", (un["id"],))
@@ -790,12 +862,15 @@ class RotasV2:
         if tipo not in regras.TIPOS or mov not in ("ENTRADA", "SAIDA", "AJUSTE"):
             raise S.ApiError("Informe o tipo sanguíneo e o movimento (entrada, saída ou ajuste).")
         motivo = texto(data, "motivo", 200, obrigatorio=False)
+        para_paciente = mov == "SAIDA" and bool(data.get("para_paciente"))
         admin = bool(self.ctx.get("admin_real"))
 
         def gravar(cur):
             cur.execute("INSERT IGNORE INTO estoque_niveis (unidade_id, tipo_sanguineo) VALUES (%s,%s)", (un["id"], tipo))
-            cur.execute("SELECT quantidade FROM estoque_niveis WHERE unidade_id=%s AND tipo_sanguineo=%s FOR UPDATE", (un["id"], tipo))
-            atual = cur.fetchone()["quantidade"]
+            cur.execute("""SELECT quantidade, limite_critico, limite_atencao FROM estoque_niveis
+                           WHERE unidade_id=%s AND tipo_sanguineo=%s FOR UPDATE""", (un["id"], tipo))
+            linha = cur.fetchone()
+            atual = linha["quantidade"]
             novo = atual + qtd if mov == "ENTRADA" else atual - qtd if mov == "SAIDA" else qtd
             if novo < 0:
                 raise S.ApiError(f"Saída maior que o estoque atual ({atual} bolsas).", 409)
@@ -804,9 +879,33 @@ class RotasV2:
             cur.execute("""INSERT INTO estoque_movimentos (unidade_id, tipo_sanguineo, movimento, quantidade, motivo, usuario_id)
                            VALUES (%s,%s,%s,%s,%s,%s)""", (un["id"], tipo, mov, qtd, motivo, self.uid()))
             auditar(cur, self.uid(), mov, "estoque", "estoque_niveis", un["id"], {"tipo": tipo, "de": atual, "para": novo, "admin": admin})
+            # Alerta automático: o tipo acabou de entrar no crítico -> a equipe recebe o atalho para convocar
+            if regras.entrou_no_critico(atual, novo, linha["limite_critico"], linha["limite_atencao"]):
+                avisar_equipe_banco(cur, un["banco_id"], f"{tipo} entrou no nível crítico",
+                                    f"{un['nome']}: {novo} bolsas de {tipo}. Convoque doadores compatíveis agora.", f"convocar:{tipo}")
+            if para_paciente:
+                self.avisar_impacto(cur, un, tipo)
             return novo
         novo = transacao(gravar)
         self.send_json({"ok": True, "quantidade": novo, "mensagem": f"Estoque de {tipo} atualizado: {novo} bolsas."})
+
+    TITULO_IMPACTO = "Doações como a sua salvam vidas 💛"
+
+    def avisar_impacto(self, cur, un, tipo):
+        """Saída de bolsa para paciente: avisa quem doou esse tipo nesse banco nos últimos 42 dias (validade das
+        hemácias). Mensagem honesta: o sistema conta bolsas por tipo, não sabe qual bolsa foi de quem.
+        No máximo um aviso desses por doador a cada 7 dias."""
+        cur.execute("""SELECT DISTINCT d.usuario_id FROM historico_doacoes h JOIN doadores d ON d.id=h.doador_id
+                       JOIN unidades u ON u.id=h.unidade_id
+                       WHERE u.banco_id=%s AND d.tipo_sanguineo=%s AND h.status='VERIFICADA' AND d.usuario_id IS NOT NULL
+                         AND h.data >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                         AND NOT EXISTS (SELECT 1 FROM avisos a WHERE a.usuario_id=d.usuario_id AND a.titulo=%s
+                                         AND a.criado_em > DATE_SUB(NOW(), INTERVAL 7 DAY))""",
+                    (un["banco_id"], tipo, regras.VALIDADE_HEMACIAS_DIAS, self.TITULO_IMPACTO))
+        for r in cur.fetchall():
+            avisar(cur, r["usuario_id"], self.TITULO_IMPACTO,
+                   f"Uma bolsa {tipo} saiu do {un['nome']} para atender um paciente. "
+                   "Doações como a sua tornam isso possível. Obrigado!", "inicio")
 
     def banco_limites(self, data, query):
         un = self.unidade_do_banco(inteiro(data.get("unidade_id"), "a unidade", 1, 10**12))
@@ -1043,13 +1142,25 @@ class RotasV2:
 
     def parceiro_painel(self, data, query):
         p = consulta("SELECT id, nome, tipo, cidade, uf, codigo_alunos, status FROM parceiros WHERE id=%s", (self.parceiro_id(),), um=True)
-        ofertas = consulta("""SELECT o.id, o.titulo, o.descricao, o.validade, o.status, o.destaque,
+        ofertas = consulta("""SELECT o.id, o.titulo, o.descricao, o.validade, o.status, o.destaque, o.tipo_emergencia, o.emergencia_ate,
                                      (SELECT COUNT(*) FROM cupons c WHERE c.oferta_id=o.id AND c.usado_em IS NOT NULL) AS usados
                               FROM ofertas o WHERE o.parceiro_id=%s ORDER BY o.id DESC""", (p["id"],))
         for o in ofertas:
             o["validade"] = data_iso(o["validade"])
-        usados_mes = consulta("""SELECT COUNT(*) AS n FROM cupons c JOIN ofertas o ON o.id=c.oferta_id
-                                 WHERE o.parceiro_id=%s AND c.usado_em >= DATE_FORMAT(CURDATE(), '%%Y-%%m-01')""", (p["id"],), um=True)["n"]
+            ativa = o["emergencia_ate"] and o["emergencia_ate"] >= S.hoje()
+            o["emergencia"] = o["tipo_emergencia"] if ativa else None
+            o["emergencia_ate"] = data_iso(o["emergencia_ate"]) if ativa else None
+            o.pop("tipo_emergencia")
+        mes = consulta("""SELECT COUNT(*) AS n, COUNT(DISTINCT c.doador_id) AS doadores FROM cupons c JOIN ofertas o ON o.id=c.oferta_id
+                          WHERE o.parceiro_id=%s AND c.usado_em >= DATE_FORMAT(CURDATE(), '%%Y-%%m-01')""", (p["id"],), um=True)
+        usados_mes = mes["n"]
+        total = consulta("""SELECT COUNT(DISTINCT c.doador_id) AS n FROM cupons c JOIN ofertas o ON o.id=c.oferta_id
+                            WHERE o.parceiro_id=%s AND c.usado_em IS NOT NULL""", (p["id"],), um=True)["n"]
+        criticos = sorted({l["tipo_sanguineo"] for l in consulta(
+            """SELECT e.tipo_sanguineo, e.quantidade, e.limite_critico, e.limite_atencao FROM estoque_niveis e
+               JOIN unidades u ON u.id=e.unidade_id JOIN bancos_sangue b ON b.id=u.banco_id AND b.status='ATIVO'
+               WHERE u.ativo=1 AND u.uf=%s AND u.cidade=%s""", (p["uf"], p["cidade"]))
+            if regras.nivel(l["quantidade"], l["limite_critico"], l["limite_atencao"]) == "CRITICO"})
         relatorio = None
         if p["codigo_alunos"]:
             alunos = consulta("""SELECT d.id, d.sexo FROM doador_parceiros dp JOIN doadores d ON d.id=dp.doador_id
@@ -1062,7 +1173,27 @@ class RotasV2:
                                     AND data > DATE_SUB(CURDATE(), INTERVAL 12 MONTH)""", (a["id"],), um=True)["n"]
                     em_dia += n >= (2 if a["sexo"] == "F" else 3)
                 relatorio.update({"em_dia_meta": em_dia, "doaram_12m": None})
-        self.send_json({"parceiro": p, "ofertas": ofertas, "cupons_usados_mes": usados_mes, "relatorio": relatorio})
+        self.send_json({"parceiro": p, "ofertas": ofertas, "cupons_usados_mes": usados_mes, "relatorio": relatorio,
+                        "impacto": {"doadores_mes": mes["doadores"], "doadores_total": total}, "criticos_cidade": criticos})
+
+    def parceiro_emergencia(self, data, query, oferta_id):
+        """Oferta de emergência: destaca uma oferta aprovada para um tipo em falta, por 7 dias (ou desliga)."""
+        tipo = str(data.get("tipo") or "").upper() or None
+        if tipo and tipo not in regras.TIPOS:
+            raise S.ApiError("Tipo sanguíneo inválido.")
+        o = consulta("SELECT id, status FROM ofertas WHERE id=%s AND parceiro_id=%s", (oferta_id, self.parceiro_id()), um=True)
+        if not o:
+            raise S.ApiError("Oferta não encontrada.", 404)
+        if o["status"] != "APROVADA":
+            raise S.ApiError("Só ofertas já aprovadas podem virar oferta de emergência.", 409)
+        ate = S.hoje() + timedelta(days=7) if tipo else None
+
+        def gravar(cur):
+            cur.execute("UPDATE ofertas SET tipo_emergencia=%s, emergencia_ate=%s WHERE id=%s", (tipo, ate, oferta_id))
+            auditar(cur, self.uid(), "EMERGENCIA", "parceiro", "ofertas", oferta_id, {"tipo": tipo})
+        transacao(gravar)
+        self.send_json({"ok": True, "mensagem": f"Oferta de emergência para {tipo} ativa até {ate.strftime('%d/%m')}." if tipo
+                        else "Oferta de emergência desligada."})
 
     def parceiro_oferta(self, data, query):
         titulo = texto(data, "titulo", 120, rotulo="o título da oferta")

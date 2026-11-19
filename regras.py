@@ -147,3 +147,49 @@ def conquistas(total_doacoes: int, regular: bool) -> list[dict]:
 
 def vidas_impactadas(total_doacoes: int) -> int:
     return total_doacoes * VIDAS_POR_DOACAO
+
+
+# ============================================================================
+# 6. PREVISÃO DO ESTOQUE, NÍVEIS DO DOADOR E AVISO DE IMPACTO (versão 2.1)
+# ============================================================================
+JANELA_PREVISAO_DIAS = 30   # média de saídas calculada nos últimos 30 dias
+VALIDADE_HEMACIAS_DIAS = 42  # validade máxima das hemácias: base do aviso "doações como a sua..."
+
+
+def previsao_dias(quantidade: int, saidas_no_periodo: int, periodo_dias: int = JANELA_PREVISAO_DIAS) -> int | None:
+    """Em quantos dias o estoque acaba no ritmo médio de saídas. None = sem saídas no período (sem previsão)."""
+    if saidas_no_periodo <= 0:
+        return None
+    por_dia = saidas_no_periodo / periodo_dias
+    return int(quantidade / por_dia)
+
+
+def entrou_no_critico(antes: int, depois: int, limite_critico: int, limite_atencao: int) -> bool:
+    """O tipo acabou de cruzar para o nível crítico (dispara o alerta só na passagem, não a cada saída)."""
+    return nivel(depois, limite_critico, limite_atencao) == "CRITICO" and nivel(antes, limite_critico, limite_atencao) != "CRITICO"
+
+
+# Níveis do doador: (doações mínimas, nome, emoji)
+NIVEIS_DOADOR = [
+    (0, "Futuro doador", "🌱"),
+    (1, "Gota", "💧"),
+    (2, "Gota de Prata", "🥈"),
+    (4, "Gota de Ouro", "🥇"),
+    (8, "Coração Vermelho", "❤️"),
+    (15, "Herói do Sangue", "🦸"),
+]
+
+
+def nivel_doador(total_doacoes: int) -> dict:
+    """Nível atual, próximo nível e quantas doações faltam."""
+    atual = NIVEIS_DOADOR[0]
+    proximo = None
+    for i, n in enumerate(NIVEIS_DOADOR):
+        if total_doacoes >= n[0]:
+            atual = n
+            proximo = NIVEIS_DOADOR[i + 1] if i + 1 < len(NIVEIS_DOADOR) else None
+    resp = {"nome": atual[1], "emoji": atual[2], "minimo": atual[0], "proximo": None, "faltam": 0, "progresso": 100}
+    if proximo:
+        resp.update({"proximo": f"{proximo[2]} {proximo[1]}", "faltam": proximo[0] - total_doacoes,
+                     "progresso": round(100 * (total_doacoes - atual[0]) / (proximo[0] - atual[0]))})
+    return resp
