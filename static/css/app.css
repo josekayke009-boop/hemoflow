@@ -433,3 +433,18 @@ html[data-tema="escuro"] .impacto { background: linear-gradient(135deg, #8a0b20,
 .selo-mini strong { font: 800 1rem Manrope, sans-serif; }
 .selo-mini small { font-size: .75rem; color: #ffd7db; }
 @media (max-width: 420px) { .contagem { grid-template-columns: 1fr; justify-items: center; text-align: center; } }
+
+/* Correção 2.1.1 — app do doador aberto no computador (tela larga) */
+/* O termômetro tem as marcas "Normal/Atenção/Crítico" ao lado: a coluna precisa caber o tubo + as marcas */
+@media (min-width: 421px) {
+  .termometro-bloco { grid-template-columns: 124px 1fr; }
+  .termometro-bloco .termometro { margin: 0; }
+}
+/* Menu de baixo do doador: no computador fica do tamanho do app (centralizado), não da tela toda */
+@media (min-width: 700px) {
+  .menu-inferior { left: 50%; right: auto; transform: translateX(-50%); width: min(640px, 100%);
+    border: 1px solid var(--linha); border-bottom: 0; border-radius: 18px 18px 0 0; }
+  .topo { justify-content: center; }
+  .topo > * { flex: none; }
+  .topo .espaco { flex: 0 1 calc(640px - 280px); }
+}
