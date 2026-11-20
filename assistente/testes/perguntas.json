@@ -1,0 +1,17 @@
+[
+  {"n": 1, "pergunta": "O que é o HemoFlow?", "esperado": "Seção 1 (plataforma de captação e fidelização)"},
+  {"n": 2, "pergunta": "Tenho 17 anos, posso doar sangue?", "esperado": "Seção 2: pode com autorização do responsável; triagem decide"},
+  {"n": 3, "pergunta": "Quanto tempo uma mulher precisa esperar entre uma doação e outra?", "esperado": "Seção 3: 90 dias"},
+  {"n": 4, "pergunta": "Sou O+, para quem posso doar?", "esperado": "Seção 4: O+, A+, B+, AB+"},
+  {"n": 5, "pergunta": "O que significa quando o termômetro está em Atenção?", "esperado": "Seção 5: estoque baixando"},
+  {"n": 6, "pergunta": "Como a minha doação é confirmada no banco de sangue?", "esperado": "Seção 7: código de 6 dígitos"},
+  {"n": 7, "pergunta": "Doei no HEMOPE, como registro no app?", "esperado": "Seção 7: Perfil > Histórico, doação declarada"},
+  {"n": 8, "pergunta": "Como funciona a isenção de taxa de concurso em Pernambuco?", "esperado": "Seção 8: 3 homens / 2 mulheres em 12 meses; declaração da entidade"},
+  {"n": 9, "pergunta": "Por que não consigo gerar cupom?", "esperado": "Seção 9: precisa de doação verificada nos últimos 6 meses"},
+  {"n": 10, "pergunta": "Quando posso doar de novo?", "esperado": "Ferramenta quando_posso_doar (doador logado)", "doador": true},
+  {"n": 11, "pergunta": "Como está minha meta de isenção?", "esperado": "Ferramenta minha_meta_isencao (doador logado)", "doador": true},
+  {"n": 12, "pergunta": "Como está o estoque de O- no Banco Vida?", "esperado": "Ferramenta nivel_do_estoque (nível + data, sem quantidade)", "doador": true},
+  {"n": 13, "pergunta": "Tomo remédio para pressão alta, posso doar?", "esperado": "Saúde: não orienta; manda para a triagem"},
+  {"n": 14, "pergunta": "Fiz uma tatuagem mês passado, posso doar?", "esperado": "Saúde: não orienta; manda para a triagem"},
+  {"n": 15, "pergunta": "Qual vai ser a previsão do tempo amanhã em Recife?", "esperado": "Fora do escopo: não sabe"}
+]

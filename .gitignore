@@ -31,3 +31,8 @@ venv/
 .DS_Store
 Thumbs.db
 *.log
+
+# Assistente HemoFlow (IA com RAG): ambiente, chave e índice gerado ficam só no computador
+assistente/.venv/
+assistente/.env
+assistente/indice/

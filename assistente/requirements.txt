@@ -1,0 +1,12 @@
+# Assistente HemoFlow (mini agente de IA com RAG) — bibliotecas
+# Instale ANTES o PyTorch versão CPU (bem menor que a versão com placa de vídeo):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Depois:  pip install -r requirements.txt
+#
+# Ficam separadas do servidor do HemoFlow (requirements.txt da raiz): a imagem da nuvem
+# continua leve, sem PyTorch e sem o modelo de embeddings.
+sentence-transformers>=3.0     # embeddings locais (modelo paraphrase-multilingual-MiniLM-L12-v2, ~470 MB)
+numpy>=1.26                    # busca por semelhança de cosseno
+openai>=1.40                   # LLM (OpenAI ou outro provedor compatível: Gemini, Ollama)
+python-dotenv>=1.0             # lê o arquivo .env
+mysql-connector-python>=9.0    # leitura do banco do HemoFlow (ferramentas do agente)

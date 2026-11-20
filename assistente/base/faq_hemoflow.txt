@@ -1,0 +1,179 @@
+FAQ E MANUAL DE REGRAS DO SISTEMA — HEMOFLOW
+
+1. SOBRE O HEMOFLOW
+O que é o HemoFlow?
+O HemoFlow é uma plataforma de captação e fidelização de doadores de sangue. Ela liga doadores a bancos de sangue parceiros (serviços privados de hemoterapia) e também mostra os hemocentros públicos do HEMOPE como locais de doação. O slogan é "Doe. Volte. Salve vidas.": o objetivo é que o doador volte a doar.
+
+O aplicativo do doador é pago?
+Não. O app do doador é gratuito. Ele é um aplicativo instalável pelo navegador (PWA), aberto pelo endereço do HemoFlow ou pelo QR Code de divulgação.
+
+Quem paga pelo HemoFlow?
+O modelo de negócio previsto é: bancos de sangue privados pagam pelo painel de captação (estoque, convocação, agenda e resultados); cursinhos e faculdades participam como parceiros para oferecer benefícios aos seus alunos; o comércio participa oferecendo cupons de agradecimento. O doador nunca paga.
+
+O HemoFlow já funciona em todo o Brasil?
+O HemoFlow está em fase piloto, com início em Pernambuco, e foi pensado para funcionar no Brasil inteiro. Ele foi desenvolvido no curso de Análise e Desenvolvimento de Sistemas da UNINASSAU Caruaru.
+
+Quem usa o HemoFlow?
+São quatro perfis em um só sistema: o doador (app no celular), o banco de sangue privado (painel de estoque, convocação e agenda), o parceiro (lojas, cursinhos, pré-Enem e faculdades, que validam cupons e cadastram ofertas) e a equipe HemoFlow (administração).
+
+2. QUEM PODE DOAR (ORIENTAÇÃO GERAL)
+Quem pode doar sangue?
+De forma geral, podem doar pessoas de 16 a 69 anos, com peso mínimo de 50 kg e em boas condições de saúde. A decisão final sobre a doação é sempre da triagem clínica do hemocentro ou do banco de sangue, no dia da doação.
+
+Menores de 18 anos podem doar?
+Pessoas de 16 e 17 anos podem doar com autorização do responsável legal. No cadastro do HemoFlow, quem tem 16 ou 17 anos precisa informar o nome do responsável e confirmar que ele autorizou. O banco de sangue pode exigir a autorização formal do responsável no dia da doação.
+
+Como devo me preparar para doar?
+Esteja bem de saúde, durma bem na noite anterior, não vá em jejum (faça uma refeição leve e evite alimentos gordurosos nas 3 horas anteriores), não consuma bebida alcoólica nas 12 horas anteriores e leve um documento oficial com foto.
+
+Tenho uma dúvida de saúde (remédio, doença, tatuagem, viagem, vacina). Posso doar?
+O HemoFlow não faz avaliação médica nem dá orientação de saúde individual. Dúvidas sobre remédios, doenças, tatuagens, piercings, viagens, vacinas ou cirurgias devem ser tiradas com a triagem do hemocentro ou do banco de sangue, que segue as normas do Ministério da Saúde.
+
+3. INTERVALOS E LIMITES ENTRE DOAÇÕES
+Quanto tempo preciso esperar entre uma doação e outra?
+Homens precisam esperar no mínimo 60 dias entre doações. Mulheres precisam esperar no mínimo 90 dias.
+
+Quantas vezes posso doar por ano?
+Homens podem doar no máximo 4 vezes em 12 meses. Mulheres podem doar no máximo 3 vezes em 12 meses.
+
+Como o app sabe quando posso doar de novo?
+O app faz uma pré-checagem: usa o sexo informado no documento e as datas das doações registradas (verificadas pelo banco de sangue ou declaradas por você) para calcular a data a partir da qual você pode doar. Na tela Início aparece a contagem "faltam N dias" ou "Você já pode doar". É só uma estimativa: quem decide é a triagem.
+
+4. COMPATIBILIDADE SANGUÍNEA (HEMÁCIAS)
+Para quem cada tipo sanguíneo pode doar hemácias?
+- O− pode doar para todos os tipos (doador universal).
+- O+ pode doar para O+, A+, B+ e AB+.
+- A− pode doar para A−, A+, AB− e AB+.
+- A+ pode doar para A+ e AB+.
+- B− pode doar para B−, B+, AB− e AB+.
+- B+ pode doar para B+ e AB+.
+- AB− pode doar para AB− e AB+.
+- AB+ pode doar apenas para AB+ (e pode receber de todos os tipos).
+
+Por que o banco convoca tipos diferentes do que está em falta?
+Porque mais de um tipo pode atender a mesma necessidade. Quando falta um tipo, o HemoFlow considera todos os doadores compatíveis com ele, conforme a tabela de compatibilidade de hemácias.
+
+5. TERMÔMETRO DA DOAÇÃO
+O que é o Termômetro da Doação?
+É o indicador do nível de estoque de cada tipo sanguíneo em cada banco de sangue parceiro. Ele aparece na tela Início do app, com o seu tipo em destaque e a grade dos 8 tipos.
+
+O que significam as cores do termômetro?
+- Normal (verde): o estoque daquele tipo está bom.
+- Atenção (laranja): o estoque está baixando; doar nos próximos dias ajuda bastante.
+- Crítico (vermelho): o estoque está muito baixo; a doação faz muita falta agora.
+
+Quem informa o nível do termômetro?
+Cada banco de sangue parceiro informa o seu próprio estoque. O app mostra a data da última atualização e quem atualizou. O doador vê apenas a cor (o nível), nunca a quantidade de bolsas.
+
+O termômetro mostra o estoque do HEMOPE?
+Não. O termômetro mostra somente os bancos de sangue parceiros do HemoFlow. Ele não é o estoque oficial do HEMOPE nem de outro hemocentro público.
+
+6. CONVOCAÇÕES E AGENDAMENTO
+O que é uma convocação?
+É um aviso que o banco de sangue envia quando um tipo sanguíneo está em falta. O HemoFlow sugere quantos doadores chamar, considerando as vagas livres na agenda e que cerca de metade dos convocados costuma comparecer. A convocação aparece em destaque na tela Início do app.
+
+Quem recebe as convocações?
+Só recebe convocação o doador compatível com o tipo em falta, que mora na cidade do banco de sangue, que já pode doar pelo intervalo entre doações, que não tem doação agendada, que não foi convocado nos últimos 7 dias e que autorizou receber avisos. Essa autorização é opcional e pode ser desligada em Perfil › Meus dados e avisos.
+
+Como agendo uma doação?
+No menu Agendar, escolha o banco de sangue, o dia e o horário e confirme. Você pode agendar a partir de uma convocação ou por conta própria. O banco de sangue recebe o aviso na hora e você recebe um código de 6 dígitos.
+
+Posso ter mais de um agendamento?
+Não. É possível ter apenas uma doação agendada por vez. Para marcar outra, cancele a atual.
+
+Como cancelo um agendamento?
+Na tela Início, toque em "Não vou poder ir · cancelar". A vaga fica livre e o banco de sangue é avisado. Quando uma vaga é liberada, o HemoFlow pode oferecê-la a outros doadores convocados.
+
+O que acontece se eu faltar?
+O banco de sangue registra a falta. Ela entra nos números de comparecimento do banco. Se não puder ir, o melhor é cancelar pelo app para liberar a vaga.
+
+7. REGISTRO E CONFIRMAÇÃO DA DOAÇÃO
+Como a minha doação é confirmada?
+No banco de sangue parceiro, depois da triagem e da coleta, a equipe digita o código de 6 dígitos que aparece no seu app. A doação passa a constar como "verificada" no seu histórico.
+
+Doei no HEMOPE. Como registro a doação no app?
+Em Perfil › Histórico de doações, use "Doou em outro lugar?" e informe a data e o local. A doação fica registrada como "declarada". O mesmo vale para doações feitas em qualquer local fora dos bancos parceiros do HemoFlow.
+
+Qual a diferença entre doação verificada e declarada?
+A verificada foi confirmada pelo banco de sangue parceiro pelo código. A declarada foi informada por você. As duas contam para o cálculo do intervalo entre doações. Somente a verificada libera cupons de vantagens e conta para a meta de doador regular mostrada no app.
+
+8. BENEFÍCIOS E DIREITOS DO DOADOR
+Doador de sangue tem isenção de taxa em concurso em Pernambuco?
+Sim, para o doador regular. Em Pernambuco, é considerado doador regular quem fez no mínimo 3 doações (homens) ou 2 doações (mulheres) nos 12 meses anteriores ao edital do concurso estadual. O app mostra o seu progresso nessa meta em Perfil › Meus direitos e conquistas, contando as doações verificadas.
+
+Como comprovo a isenção no concurso?
+A comprovação é feita com a declaração emitida pela entidade coletora (o hemocentro ou banco de sangue onde você doou). O HemoFlow não emite documento oficial.
+
+Tenho direito a folga no trabalho no dia da doação?
+Sim. A CLT (art. 473, IV) garante ao trabalhador 1 dia de folga, a cada 12 meses de trabalho, no dia da doação voluntária de sangue devidamente comprovada. A comprovação é a declaração do local da doação.
+
+Doar sangue dá direito a pagamento?
+Não. No Brasil a doação de sangue é voluntária e não remunerada (Lei nº 10.205/2001). As vantagens de parceiros no HemoFlow são um agradecimento e nunca uma condição para doar.
+
+9. VANTAGENS E CUPONS
+Quem pode gerar cupons de vantagens?
+Somente quem tem pelo menos uma doação verificada pelo banco de sangue nos últimos 6 meses. Doações declaradas não liberam cupons.
+
+Como funciona o cupom?
+Na aba Vantagens, toque em "Gerar cupom" na oferta desejada. O cupom tem um código (por exemplo, DOA-7KJ2), vale por 30 dias e pode ser usado uma única vez. Mostre o código no parceiro, que valida no painel dele.
+
+Quem cria as ofertas?
+Os próprios parceiros (lojas, cursinhos, pré-Enem, faculdades). Toda oferta nova passa pela aprovação da equipe HemoFlow antes de aparecer no app. Quando um tipo sanguíneo está crítico na cidade, o parceiro pode ativar uma oferta de emergência por 7 dias, que aparece em primeiro lugar para os doadores daquele tipo.
+
+Como uso o código do meu cursinho ou faculdade?
+Na aba Vantagens, em "Estuda em um cursinho ou faculdade parceira?", digite o código que a instituição passou. Isso vincula você ao parceiro. A instituição vê apenas números gerais da turma, e só a partir de 5 alunos vinculados.
+
+O que é a declaração de doação para a instituição de ensino?
+É um documento gerado pelo app (Perfil › Meus dados e avisos) para cursinhos e faculdades parceiros em que você está vinculado. Ela lista suas doações verificadas e tem um código que a instituição confere no HemoFlow. Não substitui o documento oficial do banco de sangue.
+
+10. GRUPOS DE DOAÇÃO E CONQUISTAS
+O que é um grupo de doação?
+É um grupo de pessoas (turma, trabalho, família) que doam juntas e acompanham uma meta de doações nos últimos 6 meses. Para entrar, use o código do grupo em Perfil › Grupos de doação. Também é possível criar um grupo e convidar pelo código.
+
+Quais são as conquistas e os níveis do doador?
+Conquistas: 1ª doação, Doador regular, 5 doações e 10 doações. Níveis: Futuro doador (0 doações), Gota (1), Gota de Prata (2), Gota de Ouro (4), Coração Vermelho (8) e Herói do Sangue (15). Ao subir de nível, o app mostra uma comemoração.
+
+Quantas vidas uma doação pode ajudar?
+Cada doação pode ajudar até 4 pessoas, porque o sangue é separado em componentes. O app soma esse número no seu histórico.
+
+Posso compartilhar a minha doação?
+Sim. Na tela Início, no cartão do seu nível, o botão "Compartilhar" gera um card "Eu doei sangue" para o story do Instagram ou para o WhatsApp.
+
+11. ONDE DOAR
+Onde posso doar pelo HemoFlow?
+No menu Agendar aparecem os bancos de sangue parceiros com agenda aberta, com endereço e horários. Também aparecem os hemocentros públicos (HEMOPE) cadastrados, com o endereço registrado no sistema.
+
+Posso agendar no HEMOPE pelo app?
+Não. A agenda do HEMOPE é feita diretamente com o hemocentro. O app mostra o local como informação. Depois de doar, registre a doação em Perfil › Histórico como declarada.
+
+Em quais cidades de Pernambuco o HEMOPE tem unidades?
+O HEMOPE tem a sede em Recife e unidades em Caruaru, Garanhuns, Petrolina, Arcoverde, Salgueiro, Serra Talhada e Ouricuri. Endereços e horários devem ser consultados no app (menu Agendar) ou nos canais oficiais do HEMOPE.
+
+12. CONTA, PRIVACIDADE E LGPD
+O banco de sangue vê os meus dados?
+O banco de sangue só vê o necessário para atender você quando você agenda ou doa nele: primeiro nome, inicial do sobrenome, tipo sanguíneo, horário e código do agendamento. As convocações são enviadas pelo próprio HemoFlow e só para quem autorizou recebê-las; o banco não recebe uma lista de contatos.
+
+Os parceiros veem os meus dados?
+Não. Lojas e comércios recebem apenas o código do cupom no momento da validação. Cursinhos e faculdades veem só números gerais da turma (a partir de 5 alunos vinculados), nunca nomes ou dados de saúde.
+
+Como o HemoFlow trata os dados de saúde?
+Tipo sanguíneo e histórico de doações são dados sensíveis pela LGPD (Lei nº 13.709/2018). No cadastro há um consentimento específico para eles. Os documentos completos estão nos Termos de Uso e na Política de Privacidade, com links no login, no cadastro e no Perfil.
+
+Como excluo a minha conta e os meus dados?
+Em Perfil › Meus dados e avisos, no fim da página, toque em "Excluir minha conta", digite a senha e escreva EXCLUIR. Os dados pessoais são apagados na hora; fica apenas o histórico de doações sem nada que identifique você. Outros pedidos (acesso, correção) podem ser feitos pela aba Ajuda e são respondidos em até 15 dias.
+
+Esqueci a minha senha. E agora?
+Na tela de entrada, toque em "Esqueci minha senha" e informe o e-mail: chega um link de uso único, válido por 30 minutos. Também é possível entrar com "Código por e-mail": o app envia um código de 6 dígitos, válido por 10 minutos.
+
+13. USO DO APLICATIVO
+Como instalo o app no celular?
+Abra o endereço do HemoFlow (ou leia o QR Code). No Android (Chrome), use o menu e "Instalar aplicativo". No iPhone (Safari), use Compartilhar e "Adicionar à Tela de Início".
+
+O app funciona sem internet?
+Sim, para consulta. Sem internet, o app mostra os últimos dados já abertos no aparelho (por exemplo, o agendamento com o código, os cupons e o histórico), com a faixa "Sem internet". Ações como agendar ou gerar cupom precisam de conexão. Os dados guardados no aparelho são apagados ao tocar em Sair.
+
+Posso aumentar a letra ou usar o modo escuro?
+Sim. Em Perfil › Letra, contraste e tema é possível escolher letra maior, alto contraste, tema escuro e menos animações.
+
+Como falo com a equipe HemoFlow?
+Pela aba Ajuda, em "Fale com a equipe HemoFlow". Cada mensagem recebe um número de protocolo e a resposta chega no e-mail cadastrado.
