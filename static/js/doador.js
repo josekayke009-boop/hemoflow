@@ -12,11 +12,13 @@ import {
   preCarregar,
 } from "./nucleo.js";
 import { telaAjuda, ligarAjuda } from "./ajuda.js";
+import { telaAssistente, ligarAssistente } from "./assistente.js";
 
 let raiz, ctxApp, usuario;
 let aba = "inicio";
 let cache = {};
-let agendarCom = null; // { unidade_id, convocacao_id } quando vem de uma convocação
+let agendarCom = null;
+let assistenteLigado = false; // { unidade_id, convocacao_id } quando vem de uma convocação
 
 export async function montar(elemento, u, ctx) {
   raiz = elemento;
@@ -28,6 +30,7 @@ export async function montar(elemento, u, ctx) {
     <header class="topo">
       <img src="/img/hemoflow-icone.png" alt="" width="36" height="36" />
       <span class="marca-nome">HemoFlow</span><span class="espaco"></span>
+      <button class="icone-btn hidden" id="d-assistente" aria-label="Assistente HemoFlow">${icone("conversa")}</button>
       <button class="icone-btn" id="d-ajuda" aria-label="Ajuda">${icone("ajuda")}</button>
       <button class="icone-btn" id="d-sino" aria-label="Avisos">${icone("sino")}<span class="bolinha hidden" id="d-bolinha"></span></button>
     </header>
@@ -41,6 +44,12 @@ export async function montar(elemento, u, ctx) {
   $("#d-sino", raiz).addEventListener("click", () => abrirAvisos(marcarSino, (link) => irPara(link === "agendar" ? "agendar" : "inicio")));
   document.addEventListener("hemoflow:online", () => document.body.contains(raiz) && irPara(aba));
   $("#d-ajuda", raiz).addEventListener("click", () => irPara("ajuda"));
+  $("#d-assistente", raiz).addEventListener("click", () => irPara("assistente"));
+  // o Assistente (IA) só aparece onde o serviço local está ligado (no computador da equipe; não na nuvem)
+  api("/api/assistente/status").then((r) => {
+    assistenteLigado = r.disponivel;
+    $("#d-assistente", raiz)?.classList.toggle("hidden", !r.disponivel);
+  }).catch(() => {});
   $("#d-conteudo", raiz).addEventListener("click", cliques);
   await irPara("inicio");
   preCarregar(["/api/doador/vantagens", "/api/doador/historico", "/api/doador/direitos", "/api/doador/grupos",
@@ -65,10 +74,11 @@ async function irPara(nova, extra) {
   area.innerHTML = '<p class="vazio">Carregando…</p>';
   scrollTo(0, 0);
   try {
-    const telas = { inicio, agendar, vantagens, perfil, direitos, grupos, historico, dados, acessibilidade, ajuda };
+    const telas = { inicio, agendar, vantagens, perfil, direitos, grupos, historico, dados, acessibilidade, ajuda, assistente };
     area.innerHTML = String(await telas[nova](extra));
     if (nova === "acessibilidade") ligarAcessibilidade(area);
     if (nova === "ajuda") ligarAjuda(area);
+    if (nova === "assistente") ligarAssistente(area, "/api/doador/assistente");
     ligarFormularios(area);
   } catch (e) {
     area.innerHTML = `<div class="cartao erro">${esc(e.message)}</div>`;
@@ -418,6 +428,7 @@ async function perfil() {
       <button type="button" data-ir="historico">📋 Histórico de doações</button>
       <button type="button" data-ir="dados">✏️ Meus dados e avisos</button>
       <button type="button" data-ir="acessibilidade">🔠 Letra, contraste e tema</button>
+      ${assistenteLigado ? '<button type="button" data-ir="assistente">💬 Assistente HemoFlow (tire dúvidas)</button>' : ""}
       <button type="button" data-ir="ajuda">❓ Ajuda e fale conosco</button>
     </section>
     <button type="button" class="btn btn-claro cheio" id="d-sair">${icone("sair")} Sair da conta</button>
@@ -519,6 +530,10 @@ async function dados() {
 
 async function acessibilidade() {
   return `${voltarPerfil}<h1>Letra, contraste e tema</h1><section class="cartao">${blocoAcessibilidade()}</section>`;
+}
+
+async function assistente() {
+  return `${voltarPerfil}${telaAssistente("DOADOR")}`;
 }
 
 async function ajuda() {

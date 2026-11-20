@@ -11,7 +11,7 @@ pergunta ──► busca.py ──► 6 trechos mais parecidos do FAQ ──► 
    base/faq_hemoflow.txt                        ferramentas.py (SÓ LEITURA no MySQL do HemoFlow)
 ```
 
-1. **Base de conhecimento:** [`base/faq_hemoflow.txt`](base/faq_hemoflow.txt) (13 seções, 52 perguntas; versão em PDF ao lado), no formato do exemplo da disciplina.
+1. **Base de conhecimento:** [`base/faq_hemoflow.txt`](base/faq_hemoflow.txt) (14 seções, 58 perguntas, incluindo uma seção para parceiros; versão em PDF ao lado), no formato do exemplo da disciplina.
 2. **Indexação (`indexar.py`):** um trecho por pergunta + resposta, com o título da seção. Dois embeddings por trecho (só a pergunta e o trecho inteiro) com o modelo local `paraphrase-multilingual-MiniLM-L12-v2` (~470 MB, baixado na 1ª vez).
 3. **Busca (`busca.py`):** semelhança de cosseno; nota = média das duas comparações. Medido nos testes: o trecho certo fica entre os 6 primeiros em 10 de 11 perguntas.
 4. **Resposta (`agente.py`):** a IA recebe as regras (prompt de sistema), os 6 trechos e a pergunta. Se nem o melhor trecho for minimamente parecido, responde "não sei" sem chamar a IA.
@@ -50,6 +50,14 @@ python testes\rodar_testes.py --doador doador@exemplo.com   # 15 perguntas -> te
 ```
 
 Trocar de provedor de IA (Gemini, Ollama) é só mudar `LLM_BASE_URL` e `LLM_MODELO` no `.env`.
+
+## Aba "Assistente" dentro do app
+
+1. Ligue o HemoFlow (`python scripts\dev.py`, na pasta do projeto).
+2. Em outro terminal, na pasta `assistente`: `.venv\Scripts\Activate.ps1` e `python servico.py` (espera aparecer “Assistente HemoFlow pronto…”).
+3. No app do doador aparece o botão 💬 no topo e o item **Perfil › Assistente HemoFlow**; no painel do parceiro, o item **Assistente** (só FAQ, sem dados de doador).
+
+Como funciona: o HemoFlow (`POST /api/doador/assistente` ou `/api/parceiro/assistente`) repassa a pergunta e o id do doador logado para o `servico.py`, que só aceita conexões do próprio computador e exige o `ASSISTENTE_SEGREDO` do `.env`. Limite de 15 perguntas a cada 10 minutos por pessoa (controle de gasto). A conversa não é salva. Onde o serviço não está ligado (por exemplo, na nuvem), o botão simplesmente não aparece.
 
 ## Resultado dos testes
 

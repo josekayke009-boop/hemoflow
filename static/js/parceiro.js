@@ -10,6 +10,7 @@
 import { api, $, esc, aviso, erro, aoEnviar, dataBR, janela, fecharJanela, TIPO_PARCEIRO, TIPOS } from "./nucleo.js";
 import { montarPainel } from "./painel.js";
 import { telaAjuda, ligarAjuda } from "./ajuda.js";
+import { telaAssistente, ligarAssistente } from "./assistente.js";
 
 let painel;
 const STATUS = { PENDENTE: "Aguardando aprovação", APROVADA: "No ar", RECUSADA: "Recusada" };
@@ -22,6 +23,10 @@ export async function montar(raiz, usuario, ctx) {
     { id: "ofertas", titulo: "Ofertas", icone: "loja", tela: telaOfertas, depois: ligarOfertas },
   ];
   if (inicial.parceiro.codigo_alunos) itens.push({ id: "alunos", titulo: "Alunos", icone: "pessoa", tela: telaAlunos, depois: ligarAlunos });
+  const assistente = await api("/api/assistente/status").catch(() => ({ disponivel: false }));
+  if (assistente.disponivel)  // só onde o serviço do Assistente (IA) está ligado
+    itens.push({ id: "assistente", titulo: "Assistente", icone: "conversa", tela: async () => telaAssistente("PARCEIRO"),
+      depois: (corpo) => ligarAssistente(corpo, "/api/parceiro/assistente") });
   itens.push({ id: "ajuda", titulo: "Ajuda", icone: "ajuda", tela: async () => telaAjuda("PARCEIRO"), depois: ligarAjuda });
   painel = montarPainel(raiz, { subtitulo: inicial.parceiro.nome, usuario, ctx, itens, aoLink: () => painel.ir("ofertas") });
 }

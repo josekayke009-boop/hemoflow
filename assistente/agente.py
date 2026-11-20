@@ -46,6 +46,12 @@ class Assistente:
             self.cliente = OpenAI(api_key=config.OPENAI_API_KEY, base_url=config.LLM_BASE_URL)
         return self.cliente
 
+    def _tipo(self):
+        try:
+            return self.ferramentas.tipo_do_usuario()
+        except Exception:  # noqa: BLE001 - sem banco, segue só com o FAQ
+            return None
+
     def responder(self, pergunta: str) -> dict:
         pergunta = (pergunta or "").strip()[:500]
         if not pergunta:
@@ -62,8 +68,12 @@ class Assistente:
         mensagens = [
             {"role": "system", "content": PROMPT_SISTEMA},
             {"role": "system", "content": f"TRECHOS DO FAQ:\n{contexto}"},
-            {"role": "user", "content": pergunta},
         ]
+        tipo = self._tipo()
+        if tipo:  # dado mínimo do doador logado: só o tipo sanguíneo (nada de nome, CPF ou contato)
+            mensagens.append({"role": "system", "content": f"DADO DO USUÁRIO LOGADO: tipo sanguíneo {tipo}. Quando a pergunta "
+                              "for sobre compatibilidade ou sobre o tipo dele (ex.: \"para quem posso doar?\"), responda para esse tipo."})
+        mensagens.append({"role": "user", "content": pergunta})
         usadas = []
         for _ in range(4):  # no máximo 3 rodadas de ferramentas + a resposta final
             r = self._llm().chat.completions.create(model=config.LLM_MODELO, messages=mensagens, temperature=0.2,

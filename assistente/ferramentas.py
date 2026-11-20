@@ -50,6 +50,11 @@ class Ferramentas:
                                         ultima_doacao_informada FROM doadores WHERE id=%s AND status='ATIVO'""",
                               (self.doador_id,), um=True)
 
+    def tipo_do_usuario(self):
+        """Só o tipo sanguíneo do doador logado (contexto mínimo para a IA responder sobre compatibilidade)."""
+        d = self._doador()
+        return d["tipo_sanguineo"] if d else None
+
     # ---- ferramentas ---------------------------------------------------------------
     def quando_posso_doar(self):
         d = self._doador()

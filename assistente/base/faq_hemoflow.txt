@@ -40,7 +40,7 @@ Como o app sabe quando posso doar de novo?
 O app faz uma pré-checagem: usa o sexo informado no documento e as datas das doações registradas (verificadas pelo banco de sangue ou declaradas por você) para calcular a data a partir da qual você pode doar. Na tela Início aparece a contagem "faltam N dias" ou "Você já pode doar". É só uma estimativa: quem decide é a triagem.
 
 4. COMPATIBILIDADE SANGUÍNEA (HEMÁCIAS)
-Para quem cada tipo sanguíneo pode doar hemácias?
+Para quem posso doar? Para quem cada tipo sanguíneo pode doar hemácias?
 - O− pode doar para todos os tipos (doador universal).
 - O+ pode doar para O+, A+, B+ e AB+.
 - A− pode doar para A−, A+, AB− e AB+.
@@ -177,3 +177,22 @@ Sim. Em Perfil › Letra, contraste e tema é possível escolher letra maior, al
 
 Como falo com a equipe HemoFlow?
 Pela aba Ajuda, em "Fale com a equipe HemoFlow". Cada mensagem recebe um número de protocolo e a resposta chega no e-mail cadastrado.
+
+14. PARA PARCEIROS (LOJAS, CURSINHOS, PRÉ-ENEM E FACULDADES)
+Quem pode usar as ofertas do meu estabelecimento?
+Somente doadores com pelo menos uma doação verificada pelo banco de sangue nos últimos 6 meses conseguem gerar o cupom das suas ofertas no app. As ofertas aparecem para os doadores do mesmo estado do parceiro. Cada cupom vale por 30 dias e pode ser usado uma única vez.
+
+Como valido o cupom de um cliente?
+No painel do parceiro, abra "Validar cupom", digite o código que o cliente mostra no app (por exemplo, DOA-7KJ2) e confirme. O uso fica registrado e o mesmo cupom não pode ser usado de novo. A validação precisa de internet, para garantir o uso único.
+
+Por que a minha oferta ainda não aparece no app?
+Toda oferta nova passa pela aprovação da equipe HemoFlow. Enquanto isso, ela aparece como "Aguardando aprovação" em "Ofertas", no painel do parceiro.
+
+Como funciona a oferta de emergência?
+Quando um tipo sanguíneo está crítico na sua cidade, o painel avisa. Em "Ofertas", o botão "Emergência" destaca uma oferta já aprovada para o tipo escolhido, por 7 dias: ela aparece em primeiro lugar para os doadores desse tipo.
+
+O que a minha instituição de ensino vê dos alunos?
+Cursinhos, pré-Enem e faculdades recebem um código para os alunos. O painel mostra apenas números gerais da turma, e só a partir de 5 alunos vinculados. Nenhum nome ou dado de saúde é mostrado. A declaração de doação de um aluno pode ser conferida pelo código em "Alunos", no painel.
+
+O que é o selo "Parceiro HemoFlow"?
+É um selo com QR Code para imprimir e colar na vitrine ou no caixa, disponível em "Impacto e selo" no painel do parceiro. O QR Code leva ao app do HemoFlow. O mesmo painel mostra quantos doadores usaram cupons do parceiro no mês.

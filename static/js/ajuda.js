@@ -18,6 +18,7 @@ const PERGUNTAS = {
     ["Como deixo a letra maior ou o app escuro?", "Em <b>Perfil › Letra, contraste e tema</b> você escolhe letra maior, alto contraste, tema escuro e menos animações."],
     ["Esqueci minha senha.", "Na tela de entrada, toque em <b>Esqueci minha senha</b> ou entre com <b>Código por e-mail</b>: mandamos um código de 6 dígitos para o seu e-mail."],
     ["Não quero mais receber convocações.", "Em <b>Perfil › Meus dados e avisos</b>, desmarque a opção de convocações. Você continua podendo agendar quando quiser."],
+    ["O que é o Assistente HemoFlow?", "É um chat com inteligência artificial (botão 💬 no topo ou Perfil › Assistente). Ele responde com base no FAQ do HemoFlow e, quando a pergunta é sobre você, consulta seus dados (quando pode doar, meta, cupons). Ele não dá orientação médica e pode errar: em dúvida, confirme com o banco de sangue."],
     ["Como excluo minha conta?", "Em <b>Perfil › Meus dados e avisos</b>, no fim da página, toque em <b>Excluir minha conta</b>, digite sua senha e escreva EXCLUIR. Seus dados pessoais são apagados na hora; fica só o histórico de doações sem identificar você."],
   ],
   BANCO: [

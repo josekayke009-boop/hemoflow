@@ -37,7 +37,10 @@ def dividir_em_trechos(texto: str) -> list[dict]:
         m = SECAO.match(limpa)
         if m and limpa.upper() == limpa:  # títulos de seção estão em MAIÚSCULAS
             fechar()
-            secao, pergunta, resposta = f"{m.group(1)}. {m.group(2).capitalize()}", None, []
+            titulo = m.group(2).capitalize()
+            for errado, certo in (("hemoflow", "HemoFlow"), ("lgpd", "LGPD"), ("pré-enem", "pré-Enem"), ("hemope", "HEMOPE")):
+                titulo = titulo.replace(errado, certo)
+            secao, pergunta, resposta = f"{m.group(1)}. {titulo}", None, []
         elif limpa.endswith("?") and not limpa.startswith("-"):
             fechar()
             pergunta, resposta = limpa, []

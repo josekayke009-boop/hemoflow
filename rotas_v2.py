@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import string
 import time
+import urllib.error
+import urllib.request
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 
@@ -148,7 +151,7 @@ def usuario_json(record, ctx):
 # ============================================================================
 # Versão vigente dos Termos de Uso e da Política de Privacidade (static/termos.html e static/privacidade.html).
 # Mudou o texto de forma relevante? Atualize aqui e no topo dos documentos.
-VERSAO_TERMOS = "1.1 de 19/11/2026"
+VERSAO_TERMOS = "1.2 de 20/11/2026"
 
 ROTAS = [
     ("POST", r"/api/cadastro", "cadastrar_doador", None),
@@ -211,6 +214,10 @@ ROTAS = [
     ("POST", r"/api/dev/semear", "dev_semear", None),
     # avisos
     ("GET", r"/api/avisos", "avisos_listar", "QUALQUER"),
+    # Assistente HemoFlow (IA com RAG, pasta assistente/): roda como serviço local no computador
+    ("GET", r"/api/assistente/status", "assistente_status", "QUALQUER"),
+    ("POST", r"/api/doador/assistente", "doador_assistente", "DOADOR"),
+    ("POST", r"/api/parceiro/assistente", "parceiro_assistente", "PARCEIRO"),
     ("POST", r"/api/avisos/lidos", "avisos_marcar_lidos", "QUALQUER"),
 ]
 _ROTAS = [(m, re.compile(p + r"$"), f, papel) for m, p, f, papel in ROTAS]
@@ -1612,6 +1619,69 @@ class RotasV2:
             raise S.ApiError("Endpoint não encontrado.", 404)
         import dados_demo
         self.send_json({"ok": True, **dados_demo.semear()})
+
+    # ========================================================================
+    # G2. ASSISTENTE HEMOFLOW (IA com RAG) — repassa a pergunta ao serviço local
+    # ========================================================================
+    # O serviço (assistente/servico.py) só existe no computador onde foi instalado. A configuração
+    # vem de HEMOFLOW_ASSISTENTE_URL / HEMOFLOW_ASSISTENTE_SEGREDO ou, se não houver, do assistente/.env.
+    # Sem configuração (por exemplo, na nuvem), a aba mostra "indisponível" e nada mais é afetado.
+    LIMITE_PERGUNTAS, JANELA_PERGUNTAS = 15, 600  # por usuário: controla o gasto com a IA
+    _perguntas_recentes: dict = {}
+
+    @staticmethod
+    def config_assistente():
+        url = os.environ.get("HEMOFLOW_ASSISTENTE_URL", "").strip()
+        segredo = os.environ.get("HEMOFLOW_ASSISTENTE_SEGREDO", "").strip()
+        env = S.BASE_DIR / "assistente" / ".env"
+        if (not segredo or not url) and env.exists():
+            valores = dict(l.split("=", 1) for l in env.read_text(encoding="utf-8").splitlines() if "=" in l and not l.startswith("#"))
+            segredo = segredo or valores.get("ASSISTENTE_SEGREDO", "").strip()
+            url = url or f"http://127.0.0.1:{valores.get('ASSISTENTE_PORTA', '8765').strip() or '8765'}"
+        return (url.rstrip("/"), segredo) if url and segredo else None
+
+    def assistente_status(self, data, query):
+        cfg = self.config_assistente()
+        disponivel = False
+        if cfg:
+            try:
+                with urllib.request.urlopen(cfg[0] + "/saude", timeout=2) as r:
+                    disponivel = r.status == 200
+            except (OSError, ValueError):
+                disponivel = False
+        self.send_json({"disponivel": disponivel})
+
+    def perguntar_assistente(self, data, doador_id):
+        pergunta = texto(data, "pergunta", 500, rotulo="a sua pergunta")
+        cfg = self.config_assistente()
+        if not cfg:
+            raise S.ApiError("O Assistente HemoFlow não está disponível neste servidor.", 503)
+        agora = time.time()
+        recentes = [t for t in self._perguntas_recentes.get(self.uid(), []) if agora - t < self.JANELA_PERGUNTAS]
+        if len(recentes) >= self.LIMITE_PERGUNTAS:
+            raise S.ApiError("Você fez muitas perguntas em pouco tempo. Aguarde alguns minutos e tente de novo.", 429)
+        self._perguntas_recentes[self.uid()] = recentes + [agora]
+        corpo = json.dumps({"pergunta": pergunta, "doador_id": doador_id}).encode("utf-8")
+        req = urllib.request.Request(cfg[0] + "/perguntar", data=corpo, method="POST",
+                                     headers={"Content-Type": "application/json", "X-Assistente-Segredo": cfg[1]})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                resposta = json.loads(r.read())
+        except urllib.error.HTTPError as exc:
+            with exc:
+                erro = json.loads(exc.read() or b"{}").get("erro")
+            raise S.ApiError(erro or "O assistente não conseguiu responder agora.", 502)
+        except (OSError, ValueError):
+            raise S.ApiError("O Assistente HemoFlow está desligado neste computador. Inicie com: python servico.py", 503)
+        self.send_json({"resposta": resposta.get("resposta", ""), "fontes": resposta.get("fontes", []),
+                        "ferramentas": resposta.get("ferramentas", [])})
+
+    def doador_assistente(self, data, query):
+        self.perguntar_assistente(data, self.doador()["id"])  # só o doador logado (ou o do "Entrar como")
+
+    def parceiro_assistente(self, data, query):
+        self.parceiro_id()
+        self.perguntar_assistente(data, None)  # parceiro: só o FAQ, sem dados de doador
 
     # ========================================================================
     # H. AVISOS (SINO)
