@@ -5,19 +5,28 @@ O .env é pessoal e NUNCA vai para o GitHub (está no .gitignore). Modelo em .en
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:  # na nuvem não há .env: tudo vem das variáveis do Railway
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    load_dotenv = None
 
 PASTA = Path(__file__).resolve().parent
-load_dotenv(PASTA / ".env")
+if load_dotenv:
+    load_dotenv(PASTA / ".env")
 
 # Base de conhecimento e índice
 ARQUIVO_FAQ = PASTA / "base" / "faq_hemoflow.txt"
 PASTA_INDICE = PASTA / "indice"
 MODELO_EMBEDDINGS = os.getenv("MODELO_EMBEDDINGS", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# "local" (padrão, computador): modelo acima com sentence-transformers.
+# "openai" (nuvem): embeddings pela API da OpenAI, sem PyTorch e sem o modelo de 470 MB na imagem.
+EMBEDDINGS = os.getenv("ASSISTENTE_EMBEDDINGS", "local").strip().lower()
+MODELO_EMBEDDINGS_NUVEM = os.getenv("MODELO_EMBEDDINGS_NUVEM", "text-embedding-3-small")
 TOP_K = int(os.getenv("TOP_K", "6"))                         # quantos trechos do FAQ vão para a IA
 # Se nem o melhor trecho chega a essa nota, a pergunta está fora do assunto: responde "não sei" sem chamar a IA.
 # Acima dela, quem decide se os trechos respondem é a IA, seguindo o prompt (regra 3).
-LIMIAR_SEMELHANCA = float(os.getenv("LIMIAR_SEMELHANCA", "0.25"))
+# Cada modelo de embeddings tem a sua escala de notas, por isso o limiar padrão muda com ele.
+LIMIAR_SEMELHANCA = float(os.getenv("LIMIAR_SEMELHANCA", "0.25" if EMBEDDINGS == "local" else "0.40"))  # medido: perguntas do HemoFlow ≥ 0,47; fora do assunto ≤ 0,39
 
 # LLM (OpenAI por padrão). Para outro provedor compatível, mude só LLM_BASE_URL e LLM_MODELO:
 #   Gemini: LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/  LLM_MODELO=gemini-2.0-flash

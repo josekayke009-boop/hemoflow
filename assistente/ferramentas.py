@@ -26,15 +26,20 @@ def _data(v):
 
 
 class Ferramentas:
+    # Na nuvem, o HemoFlow entrega a própria função de conexão (com TLS); a consulta continua em modo READ ONLY.
+    conectar = None
+
     def __init__(self, doador_id: int | None = None):
         self.doador_id = doador_id
 
     # ---- banco ------------------------------------------------------------------
     def _consulta(self, sql, params=(), um=False):
-        conn = mysql.connector.connect(**config.DB, connection_timeout=8)
+        conn = Ferramentas.conectar() if Ferramentas.conectar else mysql.connector.connect(**config.DB, connection_timeout=8)
         try:
             cur = conn.cursor(dictionary=True)
-            cur.execute("SET SESSION TRANSACTION READ ONLY")
+            if not Ferramentas.conectar:  # conexão própria: a sessão inteira fica só leitura
+                cur.execute("SET SESSION TRANSACTION READ ONLY")
+            # conexão do pool do HemoFlow (nuvem): só esta transação é READ ONLY, e a conexão volta ao pool intacta
             cur.execute("START TRANSACTION READ ONLY")
             cur.execute(sql, params)
             linhas = cur.fetchall()

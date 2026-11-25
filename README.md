@@ -39,6 +39,10 @@ Regras principais (em `regras.py`, com testes): intervalo de 60 dias (homens) e 
 
 **Concepção da versão 2.0 e proposta do novo front-end: João Manoel da Silva Oliveira.**
 
+### Assistente HemoFlow (IA com RAG)
+
+Tira dúvidas de doadores e parceiros usando só a base de conhecimento do projeto (pasta [`assistente/`](assistente/README.md)). No app do doador: botão 💬 no topo e **Perfil › Assistente HemoFlow**; no painel do parceiro: **Assistente**. No computador usa o modelo local de embeddings (`servico.py`); **na nuvem** roda dentro do próprio servidor, com embeddings da OpenAI, e liga quando a variável `OPENAI_API_KEY` existe no Railway. Limite de 15 perguntas a cada 10 minutos por pessoa e 100 por dia no total.
+
 ## Termos de Uso e Política de Privacidade (LGPD)
 
 - [Termos de Uso](static/termos.html) e [Política de Privacidade](static/privacidade.html), também publicados em `/termos.html` e `/privacidade.html`, com links no login, no cadastro e no Perfil do doador.

@@ -19,6 +19,8 @@ _trechos = None
 def carregar():
     """Carrega o índice e o modelo uma vez só (o modelo demora alguns segundos)."""
     global _modelo, _vetores, _vetores_pergunta, _trechos
+    if config.EMBEDDINGS == "openai":
+        return _carregar_nuvem()
     if _vetores is None:
         arquivo = config.PASTA_INDICE / "trechos.json"
         if not arquivo.exists():
@@ -33,6 +35,33 @@ def carregar():
     if _modelo is None:
         from sentence_transformers import SentenceTransformer
         _modelo = SentenceTransformer(config.MODELO_EMBEDDINGS)
+    return _modelo, _vetores, _trechos
+
+
+def _embeddings_nuvem(textos):
+    """Vetores normalizados pela API da OpenAI (modo nuvem)."""
+    from openai import OpenAI
+    if not config.OPENAI_API_KEY:
+        raise RuntimeError("Falta a chave da IA (OPENAI_API_KEY).")
+    r = OpenAI(api_key=config.OPENAI_API_KEY).embeddings.create(model=config.MODELO_EMBEDDINGS_NUVEM, input=textos)
+    v = np.array([d.embedding for d in r.data], dtype=np.float32)
+    return v / np.linalg.norm(v, axis=1, keepdims=True)
+
+
+class _ModeloNuvem:
+    def encode(self, textos, normalize_embeddings=True):
+        return _embeddings_nuvem(textos)
+
+
+def _carregar_nuvem():
+    """Na nuvem, o índice é montado na primeira pergunta (116 textos em uma chamada) e fica na memória."""
+    global _modelo, _vetores, _vetores_pergunta, _trechos
+    if _vetores is None:
+        from indexar import dividir_em_trechos
+        trechos = dividir_em_trechos(config.ARQUIVO_FAQ.read_text(encoding="utf-8"))
+        vetores = _embeddings_nuvem([t["texto"] for t in trechos] + [t["pergunta"] for t in trechos])
+        _trechos, _vetores, _vetores_pergunta = trechos, vetores[:len(trechos)], vetores[len(trechos):]
+        _modelo = _ModeloNuvem()
     return _modelo, _vetores, _trechos
 
 

@@ -59,6 +59,20 @@ Trocar de provedor de IA (Gemini, Ollama) é só mudar `LLM_BASE_URL` e `LLM_MOD
 
 Como funciona: o HemoFlow (`POST /api/doador/assistente` ou `/api/parceiro/assistente`) repassa a pergunta e o id do doador logado para o `servico.py`, que só aceita conexões do próprio computador e exige o `ASSISTENTE_SEGREDO` do `.env`. Limite de 15 perguntas a cada 10 minutos por pessoa (controle de gasto). A conversa não é salva. Onde o serviço não está ligado (por exemplo, na nuvem), o botão simplesmente não aparece.
 
+## Na nuvem (Railway)
+
+No site publicado o assistente roda **dentro do próprio servidor do HemoFlow**, sem o `servico.py` e sem PyTorch:
+
+- A imagem (Dockerfile) já leva `config.py`, `busca.py`, `agente.py`, `ferramentas.py`, `indexar.py` e o FAQ, e já define `ASSISTENTE_EMBEDDINGS=openai`.
+- Os embeddings vêm da API da OpenAI (`text-embedding-3-small`). O índice do FAQ (58 trechos, 2 vetores cada) é montado na primeira pergunta e fica na memória.
+- O limiar muda com o modelo: **0,40** na nuvem. Medido: perguntas do HemoFlow ≥ 0,47 e fora do assunto ≤ 0,39.
+- As ferramentas usam a conexão do próprio HemoFlow (com TLS), sempre em transação `READ ONLY`.
+- **Para ligar:** crie a variável `OPENAI_API_KEY` no serviço hemoflow do Railway (a mesma chave do `.env`). Sem ela, a aba some.
+- **Limites de gasto:** 15 perguntas a cada 10 minutos por pessoa e **100 perguntas por dia** no total (`HEMOFLOW_ASSISTENTE_LIMITE_DIA`). A conta do dia usa a auditoria (`PERGUNTA_IA`), que guarda só que houve uma pergunta, nunca o texto.
+- Teste do modo nuvem pelo app (banco temporário com dados fictícios): [`testes/relatorio_nuvem.md`](testes/relatorio_nuvem.md). As 15 perguntas responderam certo, o parceiro também, e a 18ª pergunta com limite 17 foi recusada (429).
+
+No computador nada muda: continua o modelo local da disciplina (`sentence-transformers`) com o `servico.py`.
+
 ## Resultado dos testes
 
 [`testes/relatorio.md`](testes/relatorio.md): 15 perguntas (FAQ, dados do doador, saúde e fora do escopo), com os trechos recuperados, a resposta e a fonte. Na versão final, as 15 respostas estão corretas e citam a fonte certa.

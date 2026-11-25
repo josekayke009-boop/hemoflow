@@ -2,3 +2,6 @@
 mysql-connector-python>=9.1,<27
 # Base de fusos horários (necessária no Windows e em imagens Linux mínimas)
 tzdata>=2024.1
+# Assistente HemoFlow no modo nuvem (chama a API da OpenAI; sem PyTorch)
+openai>=1.40
+numpy>=1.26

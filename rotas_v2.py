@@ -21,6 +21,7 @@ import os
 import re
 import secrets
 import string
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -1623,11 +1624,31 @@ class RotasV2:
     # ========================================================================
     # G2. ASSISTENTE HEMOFLOW (IA com RAG) — repassa a pergunta ao serviço local
     # ========================================================================
-    # O serviço (assistente/servico.py) só existe no computador onde foi instalado. A configuração
-    # vem de HEMOFLOW_ASSISTENTE_URL / HEMOFLOW_ASSISTENTE_SEGREDO ou, se não houver, do assistente/.env.
-    # Sem configuração (por exemplo, na nuvem), a aba mostra "indisponível" e nada mais é afetado.
+    # Dois modos:
+    #  - COMPUTADOR: o serviço assistente/servico.py (embeddings locais com sentence-transformers) roda à parte.
+    #    A configuração vem de HEMOFLOW_ASSISTENTE_URL / HEMOFLOW_ASSISTENTE_SEGREDO ou do assistente/.env.
+    #  - NUVEM: com ASSISTENTE_EMBEDDINGS=openai e OPENAI_API_KEY nas variáveis do Railway, o mesmo agente
+    #    roda DENTRO deste servidor, com embeddings pela API da OpenAI (sem PyTorch na imagem).
+    # Sem nenhum dos dois, a aba some e nada mais é afetado.
     LIMITE_PERGUNTAS, JANELA_PERGUNTAS = 15, 600  # por usuário: controla o gasto com a IA
+    LIMITE_DIA = int(os.environ.get("HEMOFLOW_ASSISTENTE_LIMITE_DIA", "100"))  # todas as pessoas, por dia
     _perguntas_recentes: dict = {}
+
+    @staticmethod
+    def assistente_na_nuvem():
+        return (os.environ.get("ASSISTENTE_EMBEDDINGS", "").strip().lower() == "openai"
+                and bool(os.environ.get("OPENAI_API_KEY", "").strip()))
+
+    @staticmethod
+    def assistente_interno(pergunta, doador_id):
+        """Modo nuvem: importa o agente da pasta assistente/ e usa as conexões do próprio HemoFlow."""
+        pasta = str(S.BASE_DIR / "assistente")
+        if pasta not in sys.path:
+            sys.path.insert(0, pasta)
+        import agente
+        import ferramentas
+        ferramentas.Ferramentas.conectar = S.connect_db
+        return agente.Assistente(doador_id).responder(pergunta)
 
     @staticmethod
     def config_assistente():
@@ -1641,6 +1662,8 @@ class RotasV2:
         return (url.rstrip("/"), segredo) if url and segredo else None
 
     def assistente_status(self, data, query):
+        if self.assistente_na_nuvem():
+            return self.send_json({"disponivel": True})
         cfg = self.config_assistente()
         disponivel = False
         if cfg:
@@ -1653,14 +1676,30 @@ class RotasV2:
 
     def perguntar_assistente(self, data, doador_id):
         pergunta = texto(data, "pergunta", 500, rotulo="a sua pergunta")
-        cfg = self.config_assistente()
-        if not cfg:
+        nuvem = self.assistente_na_nuvem()
+        cfg = None if nuvem else self.config_assistente()
+        if not nuvem and not cfg:
             raise S.ApiError("O Assistente HemoFlow não está disponível neste servidor.", 503)
         agora = time.time()
         recentes = [t for t in self._perguntas_recentes.get(self.uid(), []) if agora - t < self.JANELA_PERGUNTAS]
         if len(recentes) >= self.LIMITE_PERGUNTAS:
             raise S.ApiError("Você fez muitas perguntas em pouco tempo. Aguarde alguns minutos e tente de novo.", 429)
+        # Limite do dia para todas as pessoas, contado na auditoria (vale mesmo depois de o servidor reiniciar).
+        # A auditoria guarda só que houve uma pergunta, nunca o texto dela.
+        hoje = consulta("""SELECT COUNT(*) AS n FROM historico_auditoria WHERE acao='PERGUNTA_IA' AND criado_em >= CURDATE()""",
+                        um=True)["n"]
+        if hoje >= self.LIMITE_DIA:
+            raise S.ApiError("O Assistente atingiu o limite de perguntas de hoje. Tente amanhã ou veja a aba Ajuda.", 429)
         self._perguntas_recentes[self.uid()] = recentes + [agora]
+        transacao(lambda cur: auditar(cur, self.uid(), "PERGUNTA_IA", "assistente", "assistente", None,
+                                      {"modo": "nuvem" if nuvem else "computador"}))
+        if nuvem:
+            try:
+                r = self.assistente_interno(pergunta, doador_id)
+            except Exception as exc:  # noqa: BLE001 - erro da IA ou do banco vira mensagem amigável
+                print("Assistente (nuvem) falhou:", type(exc).__name__)
+                raise S.ApiError("O assistente não conseguiu responder agora. Tente de novo em instantes.", 502)
+            return self.send_json({"resposta": r["resposta"], "fontes": r.get("fontes", []), "ferramentas": r.get("ferramentas", [])})
         corpo = json.dumps({"pergunta": pergunta, "doador_id": doador_id}).encode("utf-8")
         req = urllib.request.Request(cfg[0] + "/perguntar", data=corpo, method="POST",
                                      headers={"Content-Type": "application/json", "X-Assistente-Segredo": cfg[1]})
