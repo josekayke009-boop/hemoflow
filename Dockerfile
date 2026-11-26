@@ -5,7 +5,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HEMOFLOW_ENV=production \
     HEMOFLOW_HOST=0.0.0.0 \
-    TZ=America/Recife \n    ASSISTENTE_EMBEDDINGS=openai
+    TZ=America/Recife \
+    ASSISTENTE_EMBEDDINGS=openai
 
 WORKDIR /app
 COPY requirements.txt .
