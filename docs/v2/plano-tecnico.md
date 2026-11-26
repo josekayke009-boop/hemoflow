@@ -1,4 +1,8 @@
-# HemoFlow 2.0 — plano técnico
+# Plano técnico da versão 2.0
+
+**Autores:** José Kaike Gomes dos Santos e João Manoel da Silva Oliveira. Concepção da versão 2.0: João Manoel da Silva Oliveira.
+
+Este é o plano que escrevemos antes de construir a versão 2.0. A versão 2.1 veio depois e está descrita na [documentação completa](../documentacao/HemoFlow%20-%20Documentacao%202.1.pdf).
 
 Plataforma de captação e fidelização de doadores para **bancos de sangue privados** (Brasil, piloto em PE).
 Mesma tecnologia da versão 1: Python (`http.server`) + MySQL 8 + HTML/CSS/JS + PWA, publicada no Railway.
@@ -23,7 +27,7 @@ Um único sistema, um servidor e um banco de dados: app do doador, painel do ban
 - `beneficios_estado`, `avisos`, `codigos_login`
 - `usuarios` + colunas `banco_id`, `parceiro_id`; novos perfis `BANCO`, `PARCEIRO`, `DOADOR`
 
-Saem depois (migração 006, com backup): bolsas, movimentações de bolsa, reservas, descartes, locais de armazenamento, profissionais e tabelas sem uso.
+A ideia era remover depois as tabelas da versão 1 (bolsas, movimentações de bolsa, reservas, descartes, locais de armazenamento e profissionais). Acabamos mantendo essas tabelas no banco, sem uso, porque a migração 006 foi usada para os recursos da versão 2.1.
 
 ## Regras (arquivo `regras.py`, coberto por testes)
 

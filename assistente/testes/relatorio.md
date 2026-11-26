@@ -1,4 +1,6 @@
-# Assistente HemoFlow — relatório dos testes
+# Assistente HemoFlow: relatório dos testes
+
+Projeto de José Kaike Gomes dos Santos e João Manoel da Silva Oliveira.
 
 Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` · top-k 6 · limiar 0.25 · IA `gpt-4o-mini` · doador de teste: doador@exemplo.com
 
@@ -7,7 +9,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 1 (plataforma de captação e fidelização)
 
-*Trechos recuperados:* 1. Sobre o HemoFlow — “O que é o HemoFlow?” (0.83); 1. Sobre o HemoFlow — “Quem usa o HemoFlow?” (0.70); 1. Sobre o HemoFlow — “O HemoFlow já funciona em todo o Brasil?” (0.59)
+*Trechos recuperados:* 1. Sobre o HemoFlow: “O que é o HemoFlow?” (0.83); 1. Sobre o HemoFlow: “Quem usa o HemoFlow?” (0.70); 1. Sobre o HemoFlow: “O HemoFlow já funciona em todo o Brasil?” (0.59)
 
 
 **Resposta do agente** (2.1 s):
@@ -19,7 +21,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 2: pode com autorização do responsável; triagem decide
 
-*Trechos recuperados:* 2. Quem pode doar (orientação geral) — “Quem pode doar sangue?” (0.65); 2. Quem pode doar (orientação geral) — “Menores de 18 anos podem doar?” (0.62); 4. Compatibilidade sanguínea (hemácias) — “Para quem posso doar? Para quem cada tipo sanguíneo pode doar hemácias?” (0.57)
+*Trechos recuperados:* 2. Quem pode doar (orientação geral): “Quem pode doar sangue?” (0.65); 2. Quem pode doar (orientação geral): “Menores de 18 anos podem doar?” (0.62); 4. Compatibilidade sanguínea (hemácias): “Para quem posso doar? Para quem cada tipo sanguíneo pode doar hemácias?” (0.57)
 
 
 **Resposta do agente** (1.6 s):
@@ -33,7 +35,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 3: 90 dias
 
-*Trechos recuperados:* 3. Intervalos e limites entre doações — “Quanto tempo preciso esperar entre uma doação e outra?” (0.87); 3. Intervalos e limites entre doações — “Quantas vezes posso doar por ano?” (0.66); 8. Benefícios e direitos do doador — “Doador de sangue tem isenção de taxa em concurso em Pernambuco?” (0.55)
+*Trechos recuperados:* 3. Intervalos e limites entre doações: “Quanto tempo preciso esperar entre uma doação e outra?” (0.87); 3. Intervalos e limites entre doações: “Quantas vezes posso doar por ano?” (0.66); 8. Benefícios e direitos do doador: “Doador de sangue tem isenção de taxa em concurso em Pernambuco?” (0.55)
 
 
 **Resposta do agente** (1.6 s):
@@ -47,7 +49,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 4: O+, A+, B+, AB+
 
-*Trechos recuperados:* 2. Quem pode doar (orientação geral) — “Quem pode doar sangue?” (0.59); 4. Compatibilidade sanguínea (hemácias) — “Para quem posso doar? Para quem cada tipo sanguíneo pode doar hemácias?” (0.58); 10. Grupos de doação e conquistas — “Posso compartilhar a minha doação?” (0.57)
+*Trechos recuperados:* 2. Quem pode doar (orientação geral): “Quem pode doar sangue?” (0.59); 4. Compatibilidade sanguínea (hemácias): “Para quem posso doar? Para quem cada tipo sanguíneo pode doar hemácias?” (0.58); 10. Grupos de doação e conquistas: “Posso compartilhar a minha doação?” (0.57)
 
 
 **Resposta do agente** (1.6 s):
@@ -61,7 +63,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 5: estoque baixando
 
-*Trechos recuperados:* 5. Termômetro da doação — “O termômetro mostra o estoque do HEMOPE?” (0.64); 5. Termômetro da doação — “Quem informa o nível do termômetro?” (0.57); 5. Termômetro da doação — “O que significam as cores do termômetro?” (0.52)
+*Trechos recuperados:* 5. Termômetro da doação: “O termômetro mostra o estoque do HEMOPE?” (0.64); 5. Termômetro da doação: “Quem informa o nível do termômetro?” (0.57); 5. Termômetro da doação: “O que significam as cores do termômetro?” (0.52)
 
 
 **Resposta do agente** (1.1 s):
@@ -75,7 +77,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 7: código de 6 dígitos
 
-*Trechos recuperados:* 7. Registro e confirmação da doação — “Como a minha doação é confirmada?” (0.78); 8. Benefícios e direitos do doador — “Doador de sangue tem isenção de taxa em concurso em Pernambuco?” (0.68); 2. Quem pode doar (orientação geral) — “Quem pode doar sangue?” (0.65)
+*Trechos recuperados:* 7. Registro e confirmação da doação: “Como a minha doação é confirmada?” (0.78); 8. Benefícios e direitos do doador: “Doador de sangue tem isenção de taxa em concurso em Pernambuco?” (0.68); 2. Quem pode doar (orientação geral): “Quem pode doar sangue?” (0.65)
 
 
 **Resposta do agente** (1.9 s):
@@ -89,7 +91,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 7: Perfil > Histórico, doação declarada
 
-*Trechos recuperados:* 7. Registro e confirmação da doação — “Doei no HEMOPE. Como registro a doação no app?” (0.67); 11. Onde doar — “Posso agendar no HEMOPE pelo app?” (0.62); 3. Intervalos e limites entre doações — “Como o app sabe quando posso doar de novo?” (0.55)
+*Trechos recuperados:* 7. Registro e confirmação da doação: “Doei no HEMOPE. Como registro a doação no app?” (0.67); 11. Onde doar: “Posso agendar no HEMOPE pelo app?” (0.62); 3. Intervalos e limites entre doações: “Como o app sabe quando posso doar de novo?” (0.55)
 
 
 **Resposta do agente** (1.3 s):
@@ -103,7 +105,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 8: 3 homens / 2 mulheres em 12 meses; declaração da entidade
 
-*Trechos recuperados:* 8. Benefícios e direitos do doador — “Doador de sangue tem isenção de taxa em concurso em Pernambuco?” (0.62); 11. Onde doar — “Em quais cidades de Pernambuco o HEMOPE tem unidades?” (0.49); 8. Benefícios e direitos do doador — “Como comprovo a isenção no concurso?” (0.44)
+*Trechos recuperados:* 8. Benefícios e direitos do doador: “Doador de sangue tem isenção de taxa em concurso em Pernambuco?” (0.62); 11. Onde doar: “Em quais cidades de Pernambuco o HEMOPE tem unidades?” (0.49); 8. Benefícios e direitos do doador: “Como comprovo a isenção no concurso?” (0.44)
 
 
 **Resposta do agente** (2.4 s):
@@ -117,7 +119,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Seção 9: precisa de doação verificada nos últimos 6 meses
 
-*Trechos recuperados:* 9. Vantagens e cupons — “Como funciona o cupom?” (0.45); 14. Para parceiros (lojas, cursinhos, pré-Enem e faculdades) — “Como valido o cupom de um cliente?” (0.25); 9. Vantagens e cupons — “Quem pode gerar cupons de vantagens?” (0.23)
+*Trechos recuperados:* 9. Vantagens e cupons: “Como funciona o cupom?” (0.45); 14. Para parceiros (lojas, cursinhos, pré-Enem e faculdades): “Como valido o cupom de um cliente?” (0.25); 9. Vantagens e cupons: “Quem pode gerar cupons de vantagens?” (0.23)
 
 
 **Resposta do agente** (1.4 s):
@@ -131,7 +133,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Ferramenta quando_posso_doar (doador logado)
 
-*Trechos recuperados:* 3. Intervalos e limites entre doações — “Quantas vezes posso doar por ano?” (0.64); 3. Intervalos e limites entre doações — “Quanto tempo preciso esperar entre uma doação e outra?” (0.58); 2. Quem pode doar (orientação geral) — “Como devo me preparar para doar?” (0.50)
+*Trechos recuperados:* 3. Intervalos e limites entre doações: “Quantas vezes posso doar por ano?” (0.64); 3. Intervalos e limites entre doações: “Quanto tempo preciso esperar entre uma doação e outra?” (0.58); 2. Quem pode doar (orientação geral): “Como devo me preparar para doar?” (0.50)
 
 
 **Resposta do agente** (2.0 s, ferramentas: quando_posso_doar):
@@ -145,7 +147,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Ferramenta minha_meta_isencao (doador logado)
 
-*Trechos recuperados:* 6. Convocações e agendamento — “O que acontece se eu faltar?” (0.41); 6. Convocações e agendamento — “Posso ter mais de um agendamento?” (0.41); 8. Benefícios e direitos do doador — “Como comprovo a isenção no concurso?” (0.37)
+*Trechos recuperados:* 6. Convocações e agendamento: “O que acontece se eu faltar?” (0.41); 6. Convocações e agendamento: “Posso ter mais de um agendamento?” (0.41); 8. Benefícios e direitos do doador: “Como comprovo a isenção no concurso?” (0.37)
 
 
 **Resposta do agente** (2.6 s, ferramentas: minha_meta_isencao):
@@ -159,7 +161,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Ferramenta nivel_do_estoque (nível + data, sem quantidade)
 
-*Trechos recuperados:* 14. Para parceiros (lojas, cursinhos, pré-Enem e faculdades) — “Como funciona a oferta de emergência?” (0.42); 5. Termômetro da doação — “O que é o Termômetro da Doação?” (0.42); 12. Conta, privacidade e LGPD — “Como o HemoFlow trata os dados de saúde?” (0.38)
+*Trechos recuperados:* 14. Para parceiros (lojas, cursinhos, pré-Enem e faculdades): “Como funciona a oferta de emergência?” (0.42); 5. Termômetro da doação: “O que é o Termômetro da Doação?” (0.42); 12. Conta, privacidade e LGPD: “Como o HemoFlow trata os dados de saúde?” (0.38)
 
 
 **Resposta do agente** (2.4 s, ferramentas: nivel_do_estoque):
@@ -173,7 +175,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Saúde: não orienta; manda para a triagem
 
-*Trechos recuperados:* 2. Quem pode doar (orientação geral) — “Tenho uma dúvida de saúde (remédio, doença, tatuagem, viagem, vacina). Posso doar?” (0.52); 2. Quem pode doar (orientação geral) — “Quem pode doar sangue?” (0.43); 2. Quem pode doar (orientação geral) — “Como devo me preparar para doar?” (0.42)
+*Trechos recuperados:* 2. Quem pode doar (orientação geral): “Tenho uma dúvida de saúde (remédio, doença, tatuagem, viagem, vacina). Posso doar?” (0.52); 2. Quem pode doar (orientação geral): “Quem pode doar sangue?” (0.43); 2. Quem pode doar (orientação geral): “Como devo me preparar para doar?” (0.42)
 
 
 **Resposta do agente** (1.8 s):
@@ -187,7 +189,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Saúde: não orienta; manda para a triagem
 
-*Trechos recuperados:* 10. Grupos de doação e conquistas — “Posso compartilhar a minha doação?” (0.49); 2. Quem pode doar (orientação geral) — “Tenho uma dúvida de saúde (remédio, doença, tatuagem, viagem, vacina). Posso doar?” (0.44); 7. Registro e confirmação da doação — “Como a minha doação é confirmada?” (0.43)
+*Trechos recuperados:* 10. Grupos de doação e conquistas: “Posso compartilhar a minha doação?” (0.49); 2. Quem pode doar (orientação geral): “Tenho uma dúvida de saúde (remédio, doença, tatuagem, viagem, vacina). Posso doar?” (0.44); 7. Registro e confirmação da doação: “Como a minha doação é confirmada?” (0.43)
 
 
 **Resposta do agente** (1.8 s):
@@ -199,7 +201,7 @@ Gerado em 20/11/2026 12:55 · modelo de embeddings `sentence-transformers/paraph
 
 *Esperado:* Fora do escopo: não sabe
 
-*Trechos recuperados:* 5. Termômetro da doação — “Quem informa o nível do termômetro?” (0.32); 11. Onde doar — “Em quais cidades de Pernambuco o HEMOPE tem unidades?” (0.30); 5. Termômetro da doação — “O termômetro mostra o estoque do HEMOPE?” (0.29)
+*Trechos recuperados:* 5. Termômetro da doação: “Quem informa o nível do termômetro?” (0.32); 11. Onde doar: “Em quais cidades de Pernambuco o HEMOPE tem unidades?” (0.30); 5. Termômetro da doação: “O termômetro mostra o estoque do HEMOPE?” (0.29)
 
 
 **Resposta do agente** (1.1 s):

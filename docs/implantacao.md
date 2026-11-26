@@ -1,110 +1,72 @@
 # Implantação do HemoFlow
 
-O sistema está publicado no **Railway** (período de teste gratuito, sem cartão): https://hemoflow-production.up.railway.app
+**Autores:** José Kaike Gomes dos Santos e João Manoel da Silva Oliveira
+
+O sistema está publicado no Railway, no plano de teste: https://hemoflow-production.up.railway.app
 
 ## 1. Como está montado
 
-```
-Navegador ──HTTPS──► Proxy do Railway (certificado automático)
-                         │  HTTP interno + X-Forwarded-For
-                         ▼
-                   Serviço "hemoflow" (Dockerfile)
-                   servidor.py: API + telas (static/)
-                         │  rede privada do projeto, TLS
-                         ▼
-                   Serviço "MySQL" (MySQL 8)
-```
+O projeto `cheerful-fascination` no Railway tem dois serviços:
 
-- O serviço `hemoflow` está ligado ao repositório do GitHub: **cada envio para a branch `main` gera uma nova publicação automaticamente**.
-- O frontend é servido pelo próprio `servidor.py`, então não existe um segundo serviço para hospedar.
-- Senhas e segredos ficam **somente** nas variáveis do painel do Railway (modelo em `.env.example`). Nada disso vai para o código ou para o GitHub.
+- **hemoflow:** a aplicação, montada pelo `Dockerfile` (Python 3.12, usuário sem privilégio de root, porta 8080);
+- **MySQL:** o banco, ligado à aplicação pela rede privada, com TLS.
 
-## 2. Variáveis do serviço `hemoflow`
+A cada envio para a branch `main` do GitHub, o Railway monta a imagem de novo e só coloca a versão nova no ar quando `/healthz` responde. A branch `v2` é onde trabalhamos; a `main` é a que vai para a nuvem.
 
-| Variável | Valor |
+## 2. Variáveis do serviço hemoflow
+
+| Variável | Uso |
 |---|---|
-| `HEMOFLOW_ENV` | `production` (escuta em `0.0.0.0`, cookie `Secure`, HSTS) |
-| `PORT` | `8080` |
-| `HEMOFLOW_PUBLIC_URL` | `https://hemoflow-production.up.railway.app` (usado no link do e-mail de recuperação) |
-| `HEMOFLOW_DB_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD` | referências ao serviço MySQL: `${{MySQL.MYSQLHOST}}` etc. |
-| `HEMOFLOW_DB_SSL` | `required` |
-| `HEMOFLOW_DB_POOL_SIZE` | `3` |
-| `HEMOFLOW_TZ` | `America/Recife` (vencimentos e `NOW()` no horário local) |
-| `HEMOFLOW_TRUST_PROXY` | `1` (IP real do usuário para o limite de tentativas de login) |
-| `HEMOFLOW_AUTO_INSTALL` | `1` (cria as tabelas se o banco estiver vazio) |
-| `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD` | conta Gmail e **senha de app** de 16 letras, para a recuperação de senha e a aba Suporte |
-| `HEMOFLOW_BREVO_API_KEY` | chave da API do Brevo. **Obrigatória na nuvem**: o Railway (plano de teste) bloqueia as portas de e-mail (SMTP), então o envio é feito pelo Brevo, por HTTPS |
-| `HEMOFLOW_EMAIL_FROM` | remetente dos e-mails (precisa estar verificado no Brevo); sem ela, usa `HEMOFLOW_EMAIL_USER` |
-| `HEMOFLOW_SUPPORT_EMAIL` | (opcional) caixa que recebe as mensagens da aba Ajuda/Suporte; sem ela, vão para o remetente |
-| `HEMOFLOW_DEMO_SENHA` | (versão 2.0) senha das contas de **demonstração** na nuvem, 12+ caracteres. Só é usada por `python dados_demo.py`. Fica só no Railway, nunca no GitHub |
-| `HEMOFLOW_EMAIL_CONVOCACAO` | (opcional) `1` para também mandar e-mail nas convocações. Nunca envia para endereços `@exemplo.com` |
+| `HEMOFLOW_ENV` | `production`: cookie `Secure`, HSTS e escuta em `0.0.0.0` |
+| `HEMOFLOW_PUBLIC_URL` | endereço do site, usado nos links dos e-mails |
+| `HEMOFLOW_DB_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD` | conexão com o serviço MySQL |
+| `HEMOFLOW_DB_SSL`, `HEMOFLOW_DB_POOL_SIZE` | TLS obrigatório e tamanho do pool de conexões |
+| `HEMOFLOW_TZ` | `America/Recife`, para datas e prazos no horário local |
+| `HEMOFLOW_TRUST_PROXY` | usa o IP real da pessoa no limite de tentativas de login |
+| `HEMOFLOW_AUTO_INSTALL` | cria as tabelas se o banco estiver vazio |
+| `HEMOFLOW_BREVO_API_KEY` | envio de e-mail pelo Brevo. Na nuvem é obrigatório, porque o plano de teste bloqueia as portas de e-mail (SMTP) |
+| `HEMOFLOW_EMAIL_USER`, `HEMOFLOW_EMAIL_PASSWORD` | conta de e-mail usada como remetente |
+| `OPENAI_API_KEY` | liga o assistente de IA na nuvem |
+| `HEMOFLOW_ASSISTENTE_LIMITE_DIA` | opcional: limite de perguntas por dia ao assistente (padrão 100) |
+| `HEMOFLOW_DEMO_SENHA` | opcional: senha das contas fictícias de demonstração |
+| `HEMOFLOW_EMAIL_CONVOCACAO` | opcional: `1` para mandar e-mail também nas convocações |
 
-No painel (*Settings*) também estão configurados: verificação de saúde em `/healthz` e porta de destino `8080`.
+As senhas e chaves ficam só no Railway. Nada disso vai para o GitHub.
 
 ## 3. Primeira instalação
 
-1. **Estrutura do banco:** com `HEMOFLOW_AUTO_INSTALL=1`, o `servidor.py` executa os arquivos de `banco/instalacao/` na primeira vez que encontra o banco vazio. Só entram perfis, permissões, tipos sanguíneos e hemocomponentes — **nenhum dado pessoal**.
-2. **Administrador:** no Railway, abra o serviço `hemoflow` → *Console* e rode
-   ```bash
-   python scripts/criar_administrador.py
-   ```
-   O script pede nome, e-mail e senha (a senha aparece como asteriscos).
-3. **Conferir:** `https://hemoflow-production.up.railway.app/healthz` deve responder `{"ok": true, "banco": "ok"}`.
+1. Com `HEMOFLOW_AUTO_INSTALL=1`, o servidor roda os arquivos de `banco/instalacao/` na primeira vez que encontra o banco vazio. Entram só perfis, tipos sanguíneos, benefícios e locais públicos, sem nenhum dado pessoal.
+2. O administrador é criado no Console do serviço hemoflow com `python scripts/criar_administrador.py`. A senha é digitada pela própria pessoa.
+3. Para conferir, `https://hemoflow-production.up.railway.app/healthz` deve responder `{"ok": true, "banco": "ok"}`.
+4. Para ter dados de demonstração, rode `python dados_demo.py` no Console. São criados hemocentros, parceiros e doadores fictícios, com e-mails `@exemplo.com`. Na nuvem não é criado administrador de demonstração; o administrador real vê cada perfil pelo botão "Entrar como".
 
-Os doadores e bolsas do banco local **não** foram copiados para a nuvem.
-
-## 4. Local x nuvem
+## 4. Computador e nuvem
 
 | | Computador | Nuvem |
 |---|---|---|
-| Iniciar | `python scripts/dev.py` (ou `.\iniciar_hemoflow.ps1`) | automático a cada envio ao GitHub |
-| `HEMOFLOW_ENV` | `development` (padrão) | `production` |
+| Iniciar | `python scripts/dev.py` | automático a cada envio para a `main` |
 | Endereço | http://127.0.0.1:8000 | https://hemoflow-production.up.railway.app |
 | Banco | MySQL do computador | MySQL do Railway |
-| Cookie `Secure` / HSTS | não | sim |
+| E-mail | Gmail | Brevo |
+| Assistente de IA | `assistente/servico.py`, com embeddings locais | dentro do servidor, com embeddings da OpenAI |
 
-## 5. Atualizar o sistema
+## 5. Como atualizamos o sistema
 
-1. Alterar e testar no computador:
+1. Alteramos e testamos no computador:
    ```powershell
    python -m unittest tests.test_regras tests.test_seguranca tests.test_recuperacao tests.test_email -v
-   .\iniciar_hemoflow.ps1
    ```
-2. `git add`, `git commit` e `git push`. O Railway reconstrói a imagem e publica sozinho (cerca de 1 a 2 minutos).
-3. Se alterou arquivos de `static/`, aumente o `VERSION` em `static/sw.js` para o aplicativo instalado baixar a versão nova.
-4. Migração 004 (CPF) na nuvem, depois do backup: no *Console* do serviço `hemoflow`, `python scripts/migracao_004_cpf_doador.py --usar-variaveis`.
-5. Mudanças de estrutura do banco: **backup primeiro**, depois o script de migração (como `scripts/migracao_002_endereco_doador.py`) apontado para o banco da nuvem.
+2. Fazemos o commit na `v2` e levamos para a `main`. O Railway publica em 1 ou 2 minutos.
+3. Se mudou algo em `static/`, aumentamos o `VERSION` em `static/sw.js` para o app instalado baixar a versão nova.
+4. Se a mudança mexe na estrutura do banco, fazemos o backup antes e depois rodamos a migração no Console, por exemplo `python scripts/migracao_006_v21.py --usar-variaveis`.
 
-## 5.1 Passar a nuvem para a versão 2.0
+## 6. Backup
 
-1. **Backup do banco da nuvem** (seção 6). Sem backup, não continue.
-2. Enviar a branch `v2` para a `main` (`git push`). O Railway publica a versão nova; ao iniciar, o servidor avisa no log se a migração 005 ainda não foi aplicada.
-3. No *Console* do serviço `hemoflow`:
-   ```bash
-   python scripts/migracao_005_v2.py --verificar --usar-variaveis   # mostra o que falta
-   python scripts/migracao_005_v2.py --usar-variaveis               # aplica (só acrescenta; nada é apagado)
-   ```
-4. (Opcional, para apresentação) no *Console*, rodar `python dados_demo.py`. Sem a variável `HEMOFLOW_DEMO_SENHA`, as contas demo ganham uma senha aleatória que ninguém conhece e o admin mostra cada perfil pelo "Entrar como". São criados bancos, parceiros e doadores **fictícios** (marcados com “(demo)” e e-mails `@exemplo.com`). O admin de demonstração **não** é criado na nuvem e contas de administrador nunca são apagadas.
-5. Conferir `/healthz`, entrar com o admin real e com uma conta demo.
+- **Banco do computador:** `scripts/auditar_e_backup_banco.ps1`.
+- **Banco da nuvem:** no Console do serviço hemoflow, `python scripts/backup_interno.py --usar-variaveis`. Ele copia cada tabela para outra com o prefixo `bkp_` e a data, dentro do próprio banco, já que o plano de teste não faz backup automático.
+- Os arquivos de backup nunca vão para o GitHub.
 
-### 5.2 Versão 2.1 (migração 006)
+## 7. Limitações
 
-1. Backup: `python scripts/backup_interno.py --usar-variaveis` (Console do serviço `hemoflow`).
-2. `git push` da `main` (o Railway publica sozinho).
-3. Console: `python scripts/migracao_006_v21.py --usar-variaveis` → deve terminar em “tudo aplicado”.
-4. (Opcional) `python dados_demo.py` para recriar os dados fictícios, agora com saídas de estoque no mês (previsão) e cupons usados (impacto do parceiro).
-
-As tabelas da versão 1 (bolsas, movimentações, profissionais) continuam no banco, sem uso, até uma migração 006 de limpeza feita com backup.
-
-## 6. Backup e restauração
-
-- **Banco local:** `scripts/auditar_e_backup_banco.ps1`
-- **Banco da nuvem:** `scripts/backup_nuvem.ps1 -Servidor <host público> -Porta <porta> -Usuario <usuário> -Banco <banco>` (dados de conexão na aba *Connect* do serviço MySQL). O plano de teste do Railway não faz backup automático.
-- **Restaurar** num banco vazio: `mysql -h HOST -P PORTA -u USUÁRIO -p --ssl-mode=REQUIRED BANCO < arquivo.sql`
-- Os backups ficam em `Documents\HemoFlow_backups` e nunca vão para o GitHub (o `.gitignore` bloqueia `*.sql` fora de `banco/`).
-
-## 7. Limitações conhecidas
-
-- **Prazo do teste gratuito:** o crédito do Railway vale por 30 dias. Quando acabar, os serviços param; para continuar no ar é preciso escolher um plano pago ou outra hospedagem.
-- As sessões ficam na memória do servidor: cada nova publicação desconecta quem estava logado.
-- O plano B para uma apresentação sem a nuvem é rodar no computador com `iniciar_hemoflow.ps1`.
+- O plano de teste do Railway tem prazo. Quando acabar, os serviços param e será preciso um plano pago ou outra hospedagem.
+- As sessões ficam na memória do servidor, então cada publicação nova desconecta quem estava logado.

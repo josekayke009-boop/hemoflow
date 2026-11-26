@@ -1,4 +1,6 @@
-# Assistente HemoFlow no modo nuvem (embeddings da OpenAI) - teste pelo app
+# Assistente HemoFlow no modo nuvem (embeddings da OpenAI): teste pelo app
+
+Projeto de José Kaike Gomes dos Santos e João Manoel da Silva Oliveira.
 
 ## 1. O que é o HemoFlow?
 

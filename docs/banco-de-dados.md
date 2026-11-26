@@ -1,92 +1,96 @@
-# Banco de dados do HemoFlow
+# Banco de dados do HemoFlow 2.1
 
-MySQL 8, conjunto de caracteres `utf8mb4`. A estrutura completa está em [`banco/instalacao/`](../banco/instalacao) e as alterações feitas depois, em [`banco/migracoes/`](../banco/migracoes) (cada uma com o script para desfazer).
+**Autores:** José Kaike Gomes dos Santos e João Manoel da Silva Oliveira
 
-## Principais tabelas e relacionamentos
+O banco é MySQL 8, com `utf8mb4`. A estrutura completa para instalar do zero está em [`banco/instalacao/`](../banco/instalacao). As alterações feitas depois estão em [`banco/migracoes/`](../banco/migracoes), cada uma com o script para desfazer.
+
+A versão 2.0 acrescentou as tabelas de captação, parceiros e engajamento, e a versão 2.1 acrescentou as declarações e a oferta de emergência. As tabelas de acesso, de auditoria e de doadores vieram da versão 1 e ganharam colunas novas. Nenhuma migração apagou dados.
+
+## Captação
 
 ```mermaid
 erDiagram
-    USUARIOS ||--o{ USUARIO_PERFIS : tem
-    PERFIS ||--o{ USUARIO_PERFIS : "atribuído a"
-    PERFIS ||--o{ PERFIL_PERMISSOES : concede
-    PERMISSOES ||--o{ PERFIL_PERMISSOES : "faz parte de"
-    TIPOS_SANGUINEOS ||--o{ BOLSAS : classifica
-    HEMOCOMPONENTES ||--o{ BOLSAS : classifica
-    LOCAIS_ARMAZENAMENTO ||--o{ BOLSAS : guarda
-    BOLSAS ||--o{ MOVIMENTACOES_ESTOQUE : registra
-    BOLSAS ||--o{ RESERVAS : possui
-    BOLSAS ||--o| DESCARTES : possui
-    USUARIOS ||--o{ MOVIMENTACOES_ESTOQUE : responsavel
-    DOADORES ||--o{ DOACOES : realiza
-    PROFISSIONAIS ||--o{ DOACOES : acompanha
-    USUARIOS ||--o{ RECUPERACAO_SENHAS : solicita
+    USUARIOS ||--o| DOADORES : "conta do doador"
+    BANCOS_SANGUE ||--o{ USUARIOS : equipe
+    BANCOS_SANGUE ||--o{ UNIDADES : possui
+    UNIDADES ||--o{ ESTOQUE_NIVEIS : "8 tipos"
+    UNIDADES ||--o{ ESTOQUE_MOVIMENTOS : registra
+    UNIDADES ||--o{ VAGAS : oferece
+    BANCOS_SANGUE ||--o{ CONVOCACOES : envia
+    CONVOCACOES ||--o{ CONVOCACAO_DOADORES : lista
+    DOADORES ||--o{ CONVOCACAO_DOADORES : recebe
+    DOADORES ||--o{ AGENDA_DOACOES : agenda
+    VAGAS ||--o{ AGENDA_DOACOES : ocupa
+    DOADORES ||--o{ HISTORICO_DOACOES : tem
+    AGENDA_DOACOES |o--o| HISTORICO_DOACOES : confirma
+```
+
+## Parceiros, engajamento e acesso
+
+```mermaid
+erDiagram
+    PARCEIROS ||--o{ USUARIOS : equipe
+    PARCEIROS ||--o{ OFERTAS : publica
+    OFERTAS ||--o{ CUPONS : gera
+    DOADORES ||--o{ CUPONS : usa
+    DOADORES ||--o{ DOADOR_PARCEIROS : vincula
+    PARCEIROS ||--o{ DOADOR_PARCEIROS : vincula
+    DOADORES ||--o{ DECLARACOES : emite
+    GRUPOS ||--o{ GRUPO_MEMBROS : tem
+    DOADORES ||--o{ GRUPO_MEMBROS : participa
+    USUARIOS ||--o{ AVISOS : recebe
+    USUARIOS ||--o{ CODIGOS_LOGIN : solicita
     USUARIOS ||--o{ HISTORICO_AUDITORIA : executa
 ```
 
 ## Tabelas
 
-### Acesso e segurança
-
-| Tabela | Para que serve | Campos principais |
+| Grupo | Tabela | Para que serve |
 |---|---|---|
-| `usuarios` | Contas de acesso | `nome`, `email` (único), `senha_hash`, `status`, `tentativas_falhas`, `bloqueado_ate`, `ultimo_login` |
-| `perfis` | Administrador, Responsável técnico, Operador de estoque, Consulta | `nome` (único), `descricao` |
-| `permissoes` | Ações do sistema (ex.: `doadores.criar`) | `codigo` (único), `modulo` |
-| `perfil_permissoes` | Quais permissões cada perfil tem | `perfil_id`, `permissao_id` |
-| `usuario_perfis` | Perfil de cada usuário | `usuario_id`, `perfil_id`, `atribuido_por` |
-| `recuperacao_senhas` | Links de "Esqueceu sua senha?" | `usuario_id`, `token_hash` (único), `expira_em`, `usado_em` |
-| `historico_auditoria` | Registro de quem fez o quê | `usuario_id`, `acao`, `modulo`, `entidade`, `detalhes_json` |
-| `configuracoes` | Preferências (ex.: notificações de cada usuário) | `chave` (única), `valor_json` |
+| Acesso | `usuarios` | contas, hash da senha, bloqueio e vínculo com hemocentro (`banco_id`) ou parceiro (`parceiro_id`) |
+| Acesso | `perfis`, `usuario_perfis` | perfis DOADOR, BANCO, PARCEIRO e ADMINISTRADOR |
+| Acesso | `codigos_login`, `recuperacao_senhas` | código de 6 dígitos e link de recuperação, guardados como hash |
+| Doador | `doadores` | dados do doador, sexo, consentimentos e responsável (16 e 17 anos) |
+| Hemocentro | `bancos_sangue`, `unidades` | hemocentros privados, suas unidades e os locais públicos (tipo `PUBLICO`, só informativo) |
+| Estoque | `estoque_niveis` | quantidade e limites de crítico e de atenção por tipo e unidade |
+| Estoque | `estoque_movimentos` | entradas, saídas e ajustes (base da previsão) |
+| Captação | `vagas`, `convocacoes`, `convocacao_doadores` | horários, convocações e quem foi convocado |
+| Doação | `agenda_doacoes` | agendamentos com o código de 6 dígitos e a situação |
+| Doação | `historico_doacoes` | doações verificadas pelo hemocentro ou declaradas pelo doador |
+| Parceiros | `parceiros`, `ofertas`, `cupons` | parceiros, ofertas (inclusive de emergência) e cupons de uso único |
+| Parceiros | `doador_parceiros`, `declaracoes` | vínculo de alunos com cursinhos e faculdades e declarações de doação |
+| Engajamento | `grupos`, `grupo_membros`, `beneficios_estado` | grupos com meta e benefícios por estado |
+| Controle | `avisos`, `historico_auditoria` | avisos do sino e registro de quem fez cada ação |
 
-### Pessoas
+As tabelas da versão 1 que controlavam bolsa por bolsa (bolsas, movimentações, profissionais) continuam no banco, sem uso.
 
-| Tabela | Para que serve | Campos principais |
-|---|---|---|
-| `doadores` | Cadastro de doadores | `nome`, `cpf` (único, só números), `email` (único), `telefone`, `data_nascimento`, `tipo_sanguineo`, `peso_kg`, endereço (`cep`, `logradouro`, `numero`, `complemento`, `bairro`, `cidade`, `uf`), `codigo_ficticio`, `status`, `atualizado_em` |
-| `profissionais` | Equipe licenciada | `nome`, `email` (único), `registro_profissional` (único), `cargo`, `telefone`, `usuario_id` |
+## Situações do agendamento
 
-O CPF é guardado só com os números e validado pelos dígitos verificadores. A tela de doadores mostra apenas o meio do número (`***.456.789-**`), por causa da LGPD. Doadores cadastrados antes da migração 004 ficam sem CPF.
-
-### Estoque
-
-| Tabela | Para que serve | Campos principais |
-|---|---|---|
-| `bolsas` | Bolsas de sangue | `codigo` (único), `tipo_sanguineo_id`, `hemocomponente_id`, `local_id`, `volume_ml`, `data_coleta`, `data_validade`, `status` |
-| `movimentacoes_estoque` | Histórico de cada mudança de situação | `bolsa_id`, `tipo_movimentacao`, `status_anterior`, `status_novo`, `responsavel_id`, `motivo` |
-| `reservas` | Reservas ativas e encerradas | `bolsa_id`, `status`, `reservada_por`, `liberada_em` |
-| `descartes` | Motivo do descarte (uma por bolsa) | `bolsa_id` (único), `motivo_codigo`, `justificativa` |
-| `tipos_sanguineos` | A+, A−, B+, B−, AB+, AB−, O+, O− | `codigo` |
-| `hemocomponentes` | Sangue total, concentrado de hemácias, plasma... | `codigo`, `nome` |
-| `locais_armazenamento` | Refrigeradores e prateleiras | `nome` (único) |
-
-### Preparadas para evoluções futuras
-
-`agendamentos`, `doacoes`, `alertas`, `regras_alerta`, `limites_estoque`, `notificacoes`, `mensagens`, `mensagem_destinatarios`, `execucoes_relatorios` e `sessoes` já existem na estrutura, mas ainda não são usadas pelas telas.
-
-## Situações da bolsa
-
-| Situação atual | Pode ir para |
+| Situação | Quando acontece |
 |---|---|
-| Disponível | Reservada, Transfundida, Descartada, Quarentena |
-| Reservada | Disponível, Transfundida, Descartada |
-| Quarentena | Disponível, Descartada |
-| Transfundida / Descartada | — (final) |
-
-Bolsa vencida não pode ser registrada como transfundida nem cadastrada como nova entrada.
+| `AGENDADO` | o doador escolheu o horário |
+| `CANCELADO` | o doador cancelou; o hemocentro é avisado e a vaga é oferecida a até 3 convocados |
+| `COMPARECEU` | o hemocentro digitou o código depois da triagem e da coleta; a doação entra como verificada |
+| `FALTOU` | o hemocentro marcou a falta |
 
 ## Regras garantidas pelo próprio banco
 
-- E-mail único em `usuarios`, `doadores` e `profissionais` e CPF único em `doadores` (índices `UNIQUE`).
-- Chaves estrangeiras impedem apagar um doador que já tem doações ou agendamentos.
-- Uma reserva ativa por bolsa e um descarte por bolsa.
-- Valores permitidos de situação, prioridade e status conferidos por `CHECK`.
+- Um nível de estoque por tipo e unidade, e o limite de atenção nunca menor que o crítico.
+- Um horário por unidade e capacidade maior que zero.
+- Código único para cupom, grupo e declaração, e um doador por conta.
+- Valores aceitos para situação, origem, movimento e tipo de parceiro, conferidos por `CHECK`.
+- Agendamento, confirmação, movimento de estoque e validação de cupom usam transação com `SELECT … FOR UPDATE`, para duas pessoas não ocuparem a mesma vaga ou usarem o mesmo cupom ao mesmo tempo.
 
 ## Migrações aplicadas
 
-| Nº | O que faz | Script |
+| Nº | O que mudou | Script |
 |---|---|---|
-| 000 | Tipo sanguíneo e peso no doador | `scripts/migracao_000_tipo_sanguineo_peso.py` |
-| 001 | E-mail único em doadores e profissionais | `scripts/migracao_001_email_unico.py` |
-| 002 | Endereço do doador | `scripts/migracao_002_endereco_doador.py` |
-| 003 | Tabela de recuperação de senha | `scripts/migracao_003_recuperacao_senha.py` |
-| 004 | CPF do doador (único) | `scripts/migracao_004_cpf_doador.py` |
+| 000 | tipo sanguíneo e peso no doador | `scripts/migracao_000_tipo_sanguineo_peso.py` |
+| 001 | e-mail único | `scripts/migracao_001_email_unico.py` |
+| 002 | endereço do doador | `scripts/migracao_002_endereco_doador.py` |
+| 003 | recuperação de senha | `scripts/migracao_003_recuperacao_senha.py` |
+| 004 | CPF do doador | `scripts/migracao_004_cpf_doador.py` |
+| 005 | versão 2.0: captação, parceiros, engajamento e avisos | `scripts/migracao_005_v2.py` |
+| 006 | versão 2.1: oferta de emergência e declarações | `scripts/migracao_006_v21.py` |
+
+Antes de cada migração fizemos backup. No computador usamos `scripts/auditar_e_backup_banco.ps1`; na nuvem, `scripts/backup_interno.py`, que cria a cópia dentro do próprio banco.

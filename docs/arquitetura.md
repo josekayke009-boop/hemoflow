@@ -1,63 +1,69 @@
-# Arquitetura do HemoFlow
+# Arquitetura do HemoFlow 2.1
+
+**Autores:** José Kaike Gomes dos Santos e João Manoel da Silva Oliveira
 
 ## Visão geral
 
 ```mermaid
 flowchart LR
-    U[Navegador ou aplicativo instalado] -- HTTPS --> P[Proxy da hospedagem]
-    P --> S[servidor.py<br/>API + telas]
-    S -- conexões reaproveitadas, TLS --> B[(MySQL 8)]
-    S -- HTTPS --> G[Brevo na nuvem / Gmail no computador<br/>recuperação de senha e suporte]
+    U[Celular ou computador<br/>navegador ou app instalado] -- HTTPS --> P[Proxy do Railway]
+    P --> S[servidor.py + rotas_v2.py + regras.py]
+    S -- TLS --> B[(MySQL 8)]
+    S -- HTTPS --> E[Brevo: e-mails]
+    S -- HTTPS --> IA[OpenAI: assistente]
 ```
 
-O sistema é uma **página única** (`static/index.html`). O `js/app.js` monta cada tela dentro dessa página e busca os dados no servidor pela API (`/api/...`), sempre em JSON. O `servidor.py` entrega as telas, valida tudo de novo, aplica as permissões e grava no MySQL.
+O sistema é uma página única (`static/index.html`). Depois do login, o navegador carrega o módulo do perfil da pessoa: o app do doador ou um dos painéis (hemocentro, parceiro e administração). As telas pedem os dados ao servidor pela API, sempre em JSON. O servidor confere a sessão e o perfil, aplica as regras e grava no MySQL.
 
 ## Camadas
 
-| Camada | Arquivo | Responsabilidade |
+| Camada | Arquivos | O que faz |
 |---|---|---|
-| Telas | `static/index.html`, `static/css/estilos.css` | Estrutura e visual (vermelho/vinho e branco), responsivo para celular |
-| Lógica das telas | `static/js/app.js` | Menu, telas, formulários, máscaras, avisos, notificações, modo sem conexão |
-| Animação do login | `static/js/fundo-login.js` | Células de sangue e H em 3D |
-| Aplicativo | `static/manifest.webmanifest`, `static/sw.js` | Instalação no celular/computador e abertura sem internet |
-| Servidor | `servidor.py` | Rotas da API, sessão, permissões, regras de negócio, envio de e-mail |
-| Banco | `banco/instalacao`, `banco/migracoes` | Estrutura, dados de referência e alterações |
+| Entrada | `static/index.html`, `static/js/app.js`, `static/js/fundo-login.js` | login com senha ou código, cadastro do doador, recuperação de senha e escolha da área pelo perfil |
+| Peças comuns | `static/js/nucleo.js` | comunicação com a API, avisos, janelas, preferências de acessibilidade e consulta sem internet |
+| App do doador | `static/js/doador.js` | início, agendar, vantagens e perfil |
+| Painéis | `static/js/painel.js`, `banco.js`, `parceiro.js`, `admin.js` | hemocentro, parceiro e administração |
+| Ajuda e assistente | `static/js/ajuda.js`, `static/js/assistente.js` | perguntas frequentes e chat com a IA |
+| Visual | `static/css/app.css`, `login-3d.css` | tema claro e escuro, letra maior, alto contraste |
+| Aplicativo | `static/manifest.webmanifest`, `static/sw.js` | instalação pelo QR Code |
+| Servidor | `servidor.py` | sessão, segurança, login, recuperação de senha, suporte e arquivos das telas |
+| Funcionalidades | `rotas_v2.py` | rotas do doador, do hemocentro, do parceiro, da administração, dos avisos e do assistente |
+| Regras | `regras.py` | aptidão, compatibilidade, níveis do estoque, previsão, convocação, metas, cupons e níveis do doador |
+| Assistente de IA | `assistente/` | agente com RAG ([como foi feito](assistente-rag.md)) |
+| Banco | `banco/instalacao`, `banco/migracoes` | estrutura, dados de referência e alterações |
 
 ## Rotas da API
 
-| Método | Rota | Permissão | Função |
-|---|---|---|---|
-| POST | `/api/login`, `/api/logout` | — | Entrar e sair |
-| GET | `/api/session` | — | Dados do usuário logado |
-| POST | `/api/forgot-password`, `/api/reset-password` | — | Recuperação de senha |
-| GET | `/api/summary` | painel.consultar | Indicadores do estoque |
-| GET / POST | `/api/bags` | estoque.consultar / estoque.bolsa.criar | Listar e registrar bolsas |
-| POST | `/api/bags/{id}/transition` | depende da situação | Reservar, liberar, transfundir, descartar |
-| GET | `/api/movements` | estoque.consultar | Histórico |
-| GET / POST | `/api/donors` | doadores.consultar / doadores.criar | Listar e cadastrar doadores |
-| POST | `/api/donors/{id}/review` | doadores.editar | Marcar cadastro como revisado |
-| DELETE | `/api/donors/{id}` | doadores.editar | Excluir doador |
-| POST | `/api/professionals` | Administrador | Cadastrar profissional |
-| GET / POST | `/api/access-accounts` | Administrador | Contas de acesso e perfis |
-| GET | `/api/notifications` | usuário logado | Alertas do sino |
-| POST | `/api/notifications/read`, `/api/notifications/preferences` | usuário logado | Dar baixa e ligar/desligar |
-| POST | `/api/support` | usuário logado | Enviar mensagem ao suporte (e-mail) |
-| GET | `/healthz` | — | Verificação de saúde (hospedagem) |
+Cada rota declara o perfil exigido, e o servidor confere isso em todas as chamadas. Os dados de um hemocentro ou parceiro são sempre filtrados pela conta logada.
+
+| Grupo | Exemplos | Perfil |
+|---|---|---|
+| Entrada | `/api/login`, `/api/login/codigo/enviar`, `/api/cadastro`, `/api/forgot-password` | livre |
+| Doador | `/api/doador/inicio`, `/agendar`, `/historico`, `/vantagens`, `/cupons`, `/excluir-conta` | DOADOR |
+| Hemocentro | `/api/banco/painel`, `/estoque/movimento`, `/convocacao/sugestao`, `/convocacoes`, `/confirmar` | BANCO |
+| Parceiro | `/api/parceiro/painel`, `/ofertas`, `/cupons/validar`, `/ofertas/{id}/emergencia` | PARCEIRO |
+| Administração | `/api/admin/bancos`, `/parceiros`, `/doadores`, `/contas`, `/entrar-como` | ADMINISTRADOR |
+| Avisos | `/api/avisos`, `/api/avisos/lidos` | qualquer perfil |
+| Assistente | `/api/doador/assistente`, `/api/parceiro/assistente`, `/api/assistente/status` | DOADOR ou PARCEIRO |
+| Saúde | `/healthz` | livre |
+
+A lista completa fica na tabela `ROTAS`, no começo do `rotas_v2.py`.
 
 ## Segurança
 
-- Senhas guardadas com **PBKDF2-SHA256** (600.000 iterações) e sal aleatório.
-- Sessão em cookie `HttpOnly` e `SameSite=Strict` (e `Secure` na nuvem), com validade de 8 horas.
-- **Permissões verificadas no servidor** em todas as rotas; o frontend só esconde botões.
-- Bloqueio de 15 minutos após 5 senhas erradas na mesma conta, e limite de tentativas por IP.
-- Consultas SQL sempre parametrizadas (sem concatenar texto digitado pelo usuário).
-- Textos exibidos na tela passam por `esc()` (proteção contra XSS); o servidor envia Content-Security-Policy e X-Frame-Options.
-- Recuperação de senha: link de uso único, válido por 30 minutos; o banco guarda só o hash do token; a resposta é a mesma para e-mails cadastrados ou não.
-- CPF do doador: dígitos verificadores conferidos no navegador e no servidor; a API só devolve o CPF mascarado (`***.456.789-**`).
-- Suporte: no máximo 5 mensagens por hora por usuário.
-- O modo sem conexão guarda no aparelho **somente dados do estoque** (sem dados pessoais), por até 24 horas, e apaga ao sair.
+- As senhas são guardadas com PBKDF2-SHA256 (600.000 iterações) e sal aleatório. O código de login por e-mail também é guardado só como hash.
+- A sessão fica em cookie `HttpOnly` e `SameSite=Strict` (e `Secure` na nuvem) e vale 8 horas.
+- Depois de 5 senhas erradas, a conta fica bloqueada por 15 minutos. Também há limite de tentativas por IP.
+- As consultas SQL são sempre parametrizadas.
+- Todo texto mostrado na tela passa por `esc()`, e o servidor envia Content-Security-Policy e X-Frame-Options.
+- O administrador pode "entrar como" outro perfil para dar suporte. Isso fica registrado na auditoria, e nesse modo ele não consegue excluir a conta de um doador.
+- O cadastro tem consentimento específico para dados de saúde, e o doador pode excluir a própria conta pelo app (LGPD).
+
+## Funcionamento sem internet
+
+Cada tela guarda no aparelho a última resposta recebida, separada por conta. Sem conexão, a tela mostra esses dados com a faixa "Sem internet · dados de …". A confirmação de doação feita sem internet entra numa fila e é enviada quando a conexão volta. Tudo é apagado ao tocar em Sair.
 
 ## Execução
 
-- **No computador:** `iniciar_hemoflow.ps1` confere a senha do MySQL e inicia o `servidor.py` em http://127.0.0.1:8000.
-- **Na nuvem:** o `Dockerfile` monta a imagem e o Railway publica a cada envio ao GitHub. Detalhes em [implantacao.md](implantacao.md).
+- **No computador:** `python scripts/dev.py` pede a senha do MySQL e reinicia o servidor a cada alteração, em http://127.0.0.1:8000.
+- **Na nuvem:** o `Dockerfile` monta a imagem e o Railway publica a cada envio para a branch `main`. Detalhes em [implantacao.md](implantacao.md).

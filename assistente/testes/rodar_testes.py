@@ -27,7 +27,7 @@ def main():
     perguntas = json.loads((PASTA / "perguntas.json").read_text(encoding="utf-8"))
     doador_id = None if a.sem_ia else doador_por_email(a.doador)
     com_doador, sem_doador = Assistente(doador_id), Assistente(None)
-    linhas = ["# Assistente HemoFlow — relatório dos testes\n",
+    linhas = ["# Assistente HemoFlow: relatório dos testes\n",
               f"Gerado em {datetime.now():%d/%m/%Y %H:%M} · modelo de embeddings `{config.MODELO_EMBEDDINGS}` · "
               f"top-k {config.TOP_K} · limiar {config.LIMIAR_SEMELHANCA}" +
               ("" if a.sem_ia else f" · IA `{config.LLM_MODELO}` · doador de teste: {a.doador if doador_id else 'não encontrado'}") + "\n"]
@@ -35,7 +35,7 @@ def main():
         print(f"[{q['n']:2}] {q['pergunta']}")
         linhas.append(f"\n## {q['n']}. {q['pergunta']}\n\n*Esperado:* {q['esperado']}\n")
         trechos = busca.buscar(q["pergunta"])
-        linhas.append("*Trechos recuperados:* " + "; ".join(f"{t['secao']} — “{t['pergunta']}” ({t['semelhanca']:.2f})" for t in trechos[:3]) + "\n")
+        linhas.append("*Trechos recuperados:* " + "; ".join(f"{t['secao']}: “{t['pergunta']}” ({t['semelhanca']:.2f})" for t in trechos[:3]) + "\n")
         if a.sem_ia:
             continue
         inicio = time.time()
